@@ -6,7 +6,10 @@ import {
 	sumCurrency,
 } from '../test-utils/payroll-currency-helpers.js';
 import { roundCurrency } from '../utils/money.js';
-import { calculatePayrollFromData } from './payroll-calculation.js';
+import {
+	calculatePayrollFromData,
+	type PayrollCalculationRow,
+} from './payroll-calculation.js';
 import {
 	AET_P10_TDD_LISTA_RAYA_EXPECTED,
 	buildAetP10PayrollArgs,
@@ -52,10 +55,15 @@ describe('payroll fiscal vouchers', () => {
 		const fiscalGrossTotal = sumCurrency(
 			vouchers.map((voucher) => voucher.totals.totalPerceptions),
 		);
-		const fiscalDeductionsTotal = sumCurrency(
-			vouchers.map((voucher) => voucher.totals.totalDeductions),
+		const fiscalNetDeductionsTotal = sumCurrency(
+			vouchers.map((voucher) =>
+				roundCurrency(voucher.totals.totalDeductions - voucher.totals.totalOtherPayments),
+			),
 		);
 		const fiscalNetTotal = sumCurrency(vouchers.map((voucher) => voucher.totals.netPay));
+		const fiscalTechnicalOtherPaymentsTotal = sumCurrency(
+			vouchers.map((voucher) => voucher.totals.totalOtherPayments),
+		);
 
 		expectCurrencyClose(
 			fiscalGrossTotal,
@@ -63,12 +71,18 @@ describe('payroll fiscal vouchers', () => {
 			0.01,
 		);
 		expectCurrencyClose(
-			fiscalDeductionsTotal,
-			AET_P10_TDD_LISTA_RAYA_EXPECTED.fiscalVoucherDeductionsTotal,
+			fiscalNetDeductionsTotal,
+			roundCurrency(
+				AET_P10_TDD_LISTA_RAYA_EXPECTED.fiscalVoucherDeductionsTotal -
+					fiscalTechnicalOtherPaymentsTotal,
+			),
 		);
 		expectCurrencyClose(
 			fiscalNetTotal,
-			AET_P10_TDD_LISTA_RAYA_EXPECTED.fiscalNetPayTotal,
+			roundCurrency(
+				AET_P10_TDD_LISTA_RAYA_EXPECTED.fiscalNetPayTotal +
+					fiscalTechnicalOtherPaymentsTotal,
+			),
 		);
 
 		for (const fixture of fixtures) {
@@ -83,10 +97,19 @@ describe('payroll fiscal vouchers', () => {
 				row.employeeWithholdings.total,
 				row.deductionsBreakdown,
 			);
+			const netDeductions = roundCurrency(
+				voucher.totals.totalDeductions - voucher.totals.totalOtherPayments,
+			);
 
 			expectCurrencyClose(voucher.totals.totalPerceptions, fixture.expectedFiscalGrossPay);
-			expectCurrencyClose(voucher.totals.totalDeductions, expectedDeductions);
-			expectCurrencyClose(voucher.totals.netPay, fixture.expectedFiscalNetPay);
+			expectCurrencyClose(
+				netDeductions,
+				roundCurrency(expectedDeductions - voucher.totals.totalOtherPayments),
+			);
+			expectCurrencyClose(
+				voucher.totals.netPay,
+				roundCurrency(fixture.expectedFiscalNetPay + voucher.totals.totalOtherPayments),
+			);
 			expect(voucher.perceptions[0]).toMatchObject({
 				internalType: 'FISCAL_GROSS_PAY',
 				satTypeCode: '001',
@@ -133,6 +156,80 @@ describe('payroll fiscal vouchers', () => {
 		expect(voucher.perceptions.map((line) => line.internalType as string)).not.toContain(
 			'REAL_COMPLEMENT',
 		);
+	});
+
+	it('maps caused employment subsidy with the SAT 0.01 technical other-payment amount', () => {
+		const row = {
+			employeeId: 'emp-subsidy',
+			name: 'Subsidio Aplicado',
+			paymentFrequency: 'WEEKLY',
+			grossPay: 1000,
+			fiscalGrossPay: 1000,
+			complementPay: null,
+			deductionsBreakdown: [],
+			employeeWithholdings: {
+				imssEmployee: {
+					emExcess: 0,
+					pd: 0,
+					gmp: 0,
+					iv: 0,
+					cv: 0,
+					total: 0,
+				},
+				isrWithheld: 25,
+				infonavitCredit: 0,
+				total: 25,
+			},
+			informationalLines: {
+				isrBeforeSubsidy: 125,
+				subsidyApplied: 25,
+				subsidyCaused: 100,
+			},
+		} as unknown as PayrollCalculationRow;
+
+		const voucher = buildPayrollFiscalVoucherFromCalculationRow({
+			row,
+			payrollRunId: 'run-subsidy',
+			payrollRunEmployeeId: 'line-subsidy',
+			organizationId: 'org-subsidy',
+			issuer: {
+				name: 'AET',
+				rfc: 'AET010101AAA',
+				fiscalRegime: '601',
+				expeditionPostalCode: '64000',
+			},
+			receiver: {
+				name: row.name,
+				rfc: 'XAXX010101000',
+				curp: 'XAXX010101HNEXXXA4',
+				nss: '12345678901',
+				fiscalRegime: '605',
+				fiscalPostalCode: '64000',
+				contractType: '01',
+				workdayType: '01',
+			},
+			periodStartDateKey: '2026-03-02',
+			periodEndDateKey: '2026-03-08',
+			paymentDateKey: '2026-03-08',
+		});
+
+		expect(voucher.otherPayments).toEqual([
+			{
+				internalType: 'SUBSIDY_APPLIED',
+				satTypeCode: '002',
+				internalCode: 'SUBSIDY_APPLIED',
+				description:
+					'Subsidio para el empleo del Decreto que otorga el subsidio para el empleo',
+				amount: 0.01,
+				subsidyCausedAmount: 100,
+			},
+		]);
+		expect(voucher.deductions.find((deduction) => deduction.internalType === 'ISR')).toMatchObject({
+			amount: 25,
+			satTypeCode: '002',
+		});
+		expect(voucher.totals.totalOtherPayments).toBe(0.01);
+		expect(voucher.totals.netPay).toBe(975.01);
 	});
 
 	it('validates missing SAT-required fiscal data before stamping', () => {

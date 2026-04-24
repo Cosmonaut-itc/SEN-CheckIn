@@ -101,6 +101,7 @@ export interface PayrollFiscalOtherPaymentLine {
 	internalCode: string;
 	description: string;
 	amount: number;
+	subsidyCausedAmount: number;
 }
 
 export interface PayrollFiscalVoucherTotals {
@@ -146,6 +147,8 @@ export interface BuildPayrollFiscalVoucherArgs {
 const SAT_PERCEPTION_SALARY_CODE = '001';
 const SAT_DEDUCTION_IMSS_CODE = '001';
 const SAT_DEDUCTION_ISR_CODE = '002';
+const SAT_OTHER_PAYMENT_SUBSIDY_CODE = '002';
+const SAT_SUBSIDY_EMPLOYMENT_TECHNICAL_AMOUNT = 0.01;
 
 /**
  * Checks whether a value has non-whitespace text.
@@ -222,13 +225,14 @@ function buildWithholdingDeductionLines(
 		});
 	}
 
-	if (employeeWithholdings.isrWithheld > 0) {
+	const isrDeductionAmount = roundCurrency(employeeWithholdings.isrWithheld);
+	if (isrDeductionAmount > 0) {
 		deductions.push({
 			internalType: 'ISR',
 			satTypeCode: SAT_DEDUCTION_ISR_CODE,
 			internalCode: 'ISR',
 			description: 'ISR',
-			amount: roundCurrency(employeeWithholdings.isrWithheld),
+			amount: isrDeductionAmount,
 		});
 	}
 
@@ -277,10 +281,30 @@ function buildUnmappedDeductionLines(
 /**
  * Builds SAT other-payment lines from informational payroll values.
  *
+ * @param informationalLines - Informational tax lines from the payroll calculation
  * @returns Fiscal other-payment lines
  */
-function buildOtherPaymentLines(): PayrollFiscalOtherPaymentLine[] {
-	return [];
+function buildOtherPaymentLines(
+	informationalLines: PayrollInformationalLines,
+): PayrollFiscalOtherPaymentLine[] {
+	const subsidyCaused = roundCurrency(
+		informationalLines.subsidyCaused ?? informationalLines.subsidyApplied,
+	);
+	if (subsidyCaused <= 0) {
+		return [];
+	}
+
+	return [
+		{
+			internalType: 'SUBSIDY_APPLIED',
+			satTypeCode: SAT_OTHER_PAYMENT_SUBSIDY_CODE,
+			internalCode: 'SUBSIDY_APPLIED',
+			description:
+				'Subsidio para el empleo del Decreto que otorga el subsidio para el empleo',
+			amount: SAT_SUBSIDY_EMPLOYMENT_TECHNICAL_AMOUNT,
+			subsidyCausedAmount: subsidyCaused,
+		},
+	];
 }
 
 /**
@@ -299,7 +323,7 @@ export function buildPayrollFiscalVoucherFromCalculationRow(
 		...buildConfiguredDeductionLines(args.row.deductionsBreakdown),
 	];
 	const unmappedDeductions = buildUnmappedDeductionLines(args.row.deductionsBreakdown);
-	const otherPayments = buildOtherPaymentLines();
+	const otherPayments = buildOtherPaymentLines(args.row.informationalLines);
 	const totalPerceptions = sumMoney(perceptions.map((line) => line.totalAmount));
 	const totalDeductions = sumMoney(deductions.map((line) => line.amount));
 	const totalOtherPayments = sumMoney(otherPayments.map((line) => line.amount));

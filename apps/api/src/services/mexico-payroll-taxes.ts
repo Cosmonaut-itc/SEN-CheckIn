@@ -69,6 +69,7 @@ export interface PayrollEmployerCosts {
 export interface PayrollInformationalLines {
 	isrBeforeSubsidy: number;
 	subsidyApplied: number;
+	subsidyCaused: number;
 }
 
 export interface MexicoPayrollTaxResult {
@@ -627,6 +628,7 @@ export function calculateMexicoPayrollTaxes(input: MexicoPayrollTaxInput): Mexic
 	);
 	const monthlyEquivalent = daysInPeriod > 0 ? (isrBase / daysInPeriod) * UMA_MONTHLY_DAYS : 0;
 	const subsidyEligible = monthlyEquivalent <= subsidyRule.monthlyLimit;
+	const subsidyCaused = subsidyEligible ? subsidyPeriod : 0;
 	const subsidyApplied = subsidyEligible
 		? roundCurrency(Math.min(isrBeforeSubsidy, subsidyPeriod))
 		: 0;
@@ -760,6 +762,7 @@ export function calculateMexicoPayrollTaxes(input: MexicoPayrollTaxInput): Mexic
 	const informationalLines: PayrollInformationalLines = {
 		isrBeforeSubsidy,
 		subsidyApplied,
+		subsidyCaused,
 	};
 
 	const netPay = roundCurrency(isrBase - employeeWithholdings.total);

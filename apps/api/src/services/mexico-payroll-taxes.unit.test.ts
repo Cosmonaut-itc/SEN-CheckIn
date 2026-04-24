@@ -72,6 +72,7 @@ describe('mexico-payroll-taxes minimum wage parity', () => {
 		});
 
 		expect(result.bases.minimumWageDaily).toBe(315.04);
+		expect(result.informationalLines.subsidyCaused).toBe(123.34);
 		expect(result.informationalLines.subsidyApplied).toBe(123.34);
 		expect(result.employeeWithholdings.isrWithheld).toBe(0);
 		expect(result.employeeWithholdings.imssEmployee.total).toBe(0);
@@ -164,6 +165,30 @@ describe('mexico-payroll-taxes minimum wage parity', () => {
 		expect(absorbed.employeeWithholdings.total).toBe(0);
 		expect(absorbed.employerCosts.absorbedIsr).toBe(
 			retained.employeeWithholdings.isrWithheld,
+		);
+	});
+
+	it('reports caused subsidy separately when only part can be applied against ISR', () => {
+		const result = calculateMexicoPayrollTaxes({
+			dailyPay: 1000 / 7,
+			grossPay: 1000,
+			paymentFrequency: 'WEEKLY',
+			periodStartDateKey: '2026-03-02',
+			periodEndDateKey: '2026-03-08',
+			hireDate: new Date('2018-01-08T00:00:00.000Z'),
+			locationGeographicZone: 'GENERAL',
+			settings: {
+				...buildBaseSettings(),
+				riskWorkRate: 0.06,
+				statePayrollTaxRate: 0.02,
+			},
+		});
+
+		expect(result.informationalLines.isrBeforeSubsidy).toBe(55.26);
+		expect(result.informationalLines.subsidyApplied).toBe(55.26);
+		expect(result.informationalLines.subsidyCaused).toBe(123.34);
+		expect(result.informationalLines.subsidyCaused).toBeGreaterThan(
+			result.informationalLines.subsidyApplied,
 		);
 	});
 });

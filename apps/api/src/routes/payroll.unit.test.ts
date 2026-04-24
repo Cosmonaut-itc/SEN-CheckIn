@@ -158,6 +158,8 @@ interface FakeDbState {
 	deductionUpdateConditions: DrizzleCondition[];
 	pendingDeductionMutationBeforeTransaction: FakePendingDeductionMutation | null;
 	pendingDeductionMutationBeforeUpdate: FakePendingDeductionMutation | null;
+	pendingBodylessFiscalVoucherConflictOnNextInsert: boolean;
+	pendingFiscalVoucherStampBeforeUpdate: boolean;
 }
 
 /**
@@ -224,6 +226,21 @@ function createApiKeyJsonPostRequest(path: string, body: unknown): Request {
 			'x-test-auth-type': 'apiKey',
 		},
 		body: JSON.stringify(body),
+	});
+}
+
+/**
+ * Creates an API-key POST request without a request body.
+ *
+ * @param path - Request path
+ * @returns Request instance
+ */
+function createApiKeyEmptyPostRequest(path: string): Request {
+	return new Request(`http://localhost${path}`, {
+		method: 'POST',
+		headers: {
+			'x-test-auth-type': 'apiKey',
+		},
 	});
 }
 
@@ -623,6 +640,51 @@ function getConditionColumnName(column: unknown): string | null {
 		return resolvedColumn.name;
 	}
 	return typeof resolvedColumn.config?.name === 'string' ? resolvedColumn.config.name : null;
+}
+
+/**
+ * Reads a fake row value by a Drizzle column name.
+ *
+ * @param row - Fake database row
+ * @param columnName - Drizzle column name
+ * @returns Row value
+ */
+function readFakeRowColumn(row: Record<string, unknown>, columnName: string): unknown {
+	if (columnName === 'stamped_at') {
+		return row.stampedAt;
+	}
+	return row[columnName];
+}
+
+/**
+ * Checks whether a fake row matches a Drizzle-like condition tree.
+ *
+ * @param row - Fake database row
+ * @param condition - Drizzle-like condition tree
+ * @returns True when the row matches
+ */
+function matchesFakeRowCondition(
+	row: Record<string, unknown>,
+	condition: DrizzleCondition,
+): boolean {
+	if (condition.kind === 'and') {
+		return condition.conditions.every((child) => matchesFakeRowCondition(row, child));
+	}
+
+	const columnName = getConditionColumnName(condition.column);
+	if (!columnName) {
+		return false;
+	}
+
+	if (condition.kind === 'eq') {
+		return readFakeRowColumn(row, columnName) === condition.value;
+	}
+
+	if (condition.kind === 'isNull') {
+		return readFakeRowColumn(row, columnName) === null;
+	}
+
+	return false;
 }
 
 /**
@@ -1238,18 +1300,52 @@ function createFakeDb(state: FakeDbState): {
 					});
 				}
 				if (tableName === 'payroll_fiscal_voucher') {
+					if (state.pendingBodylessFiscalVoucherConflictOnNextInsert) {
+						state.pendingBodylessFiscalVoucherConflictOnNextInsert = false;
+						state.payrollFiscalVouchers.push(
+							...rows.map((row, index) => ({
+								id: `concurrent-fiscal-voucher-${
+									state.payrollFiscalVouchers.length + index + 1
+								}`,
+								createdAt: new Date(),
+								updatedAt: new Date(),
+								...row,
+								voucher: {
+									...((row.voucher as Record<string, unknown>) ?? {}),
+									paymentDateKey: null,
+								},
+								validationErrors: [
+									...((row.validationErrors as Record<string, unknown>[]) ?? []),
+									{
+										code: 'PAYMENT_DATE_REQUIRED',
+										field: 'paymentDateKey',
+										message: 'Payroll voucher payment date is required.',
+									},
+								],
+								status: 'BLOCKED',
+							})),
+						);
+					}
 					state.payrollFiscalVouchers.push(
-						...rows.map((row, index) => ({
-							id:
-								typeof row.id === 'string'
-									? row.id
-									: `fiscal-voucher-${
-											state.payrollFiscalVouchers.length + index + 1
-										}`,
-							createdAt: new Date(),
-							updatedAt: new Date(),
-							...row,
-						})),
+						...rows
+							.filter(
+								(row) =>
+									!state.payrollFiscalVouchers.some(
+										(existing) =>
+											existing.payrollRunEmployeeId === row.payrollRunEmployeeId,
+									),
+							)
+							.map((row, index) => ({
+								id:
+									typeof row.id === 'string'
+										? row.id
+										: `fiscal-voucher-${
+												state.payrollFiscalVouchers.length + index + 1
+											}`,
+								createdAt: new Date(),
+								updatedAt: new Date(),
+								...row,
+							})),
 					);
 				}
 				return Object.assign(Promise.resolve(), {
@@ -1343,6 +1439,35 @@ function createFakeDb(state: FakeDbState): {
 								deduction.remainingAmount = values.remainingAmount as string | null;
 							}
 							updatedRows.push({ id: deduction.id });
+						}
+
+						return updatedRows;
+					}
+
+					if (tableName === 'payroll_fiscal_voucher') {
+						const voucherId = extractEqValue(
+							condition,
+							(value) => typeof value === 'string',
+						);
+						if (state.pendingFiscalVoucherStampBeforeUpdate) {
+							for (const voucher of state.payrollFiscalVouchers) {
+								if (voucher.id !== voucherId) {
+									continue;
+								}
+								voucher.uuid = 'concurrent-stamp-uuid';
+								voucher.stampedAt = new Date('2026-03-09T00:00:00.000Z');
+								voucher.status = 'STAMPED';
+							}
+							state.pendingFiscalVoucherStampBeforeUpdate = false;
+						}
+
+						const updatedRows: Record<string, unknown>[] = [];
+						for (const voucher of state.payrollFiscalVouchers) {
+							if (!matchesFakeRowCondition(voucher, condition)) {
+								continue;
+							}
+							Object.assign(voucher, values);
+							updatedRows.push({ id: voucher.id });
 						}
 
 						return updatedRows;
@@ -1475,6 +1600,8 @@ const dbState: FakeDbState = {
 	deductionUpdateConditions: [],
 	pendingDeductionMutationBeforeTransaction: null,
 	pendingDeductionMutationBeforeUpdate: null,
+	pendingBodylessFiscalVoucherConflictOnNextInsert: false,
+	pendingFiscalVoucherStampBeforeUpdate: false,
 };
 
 const fakeDb = createFakeDb(dbState);
@@ -1572,6 +1699,8 @@ describe('payroll routes', () => {
 		dbState.deductionUpdateConditions = [];
 		dbState.pendingDeductionMutationBeforeTransaction = null;
 		dbState.pendingDeductionMutationBeforeUpdate = null;
+		dbState.pendingBodylessFiscalVoucherConflictOnNextInsert = false;
+		dbState.pendingFiscalVoucherStampBeforeUpdate = false;
 	});
 
 	afterAll(() => {
@@ -2095,7 +2224,9 @@ describe('payroll routes', () => {
 		}
 
 		const prepareResponse = await payrollRoutes.handle(
-			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/prepare`, {}),
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/prepare`, {
+				paymentDateKey: AET_P10_2026_PERIOD.periodEndDateKey,
+			}),
 		);
 		expect(prepareResponse.status).toBe(200);
 		const prepareJson = (await prepareResponse.json()) as {
@@ -2111,9 +2242,13 @@ describe('payroll routes', () => {
 				vouchers?: Array<{
 					status: string;
 					voucher: {
+						periodStartDateKey: string;
+						periodEndDateKey: string;
+						paymentDateKey: string | null;
 						totals: {
 							totalPerceptions: number;
 							totalDeductions: number;
+							totalOtherPayments: number;
 							netPay: number;
 						};
 					};
@@ -2135,13 +2270,27 @@ describe('payroll routes', () => {
 		);
 
 		const vouchers = prepareJson.data?.vouchers ?? [];
+		expect(vouchers[0]?.voucher.periodStartDateKey).toBe(
+			AET_P10_2026_PERIOD.periodStartDateKey,
+		);
+		expect(vouchers[0]?.voucher.periodEndDateKey).toBe(
+			AET_P10_2026_PERIOD.periodEndDateKey,
+		);
+		expect(vouchers[0]?.voucher.paymentDateKey).toBe(AET_P10_2026_PERIOD.periodEndDateKey);
 		const fiscalGrossTotal = sumCurrency(
 			vouchers.map((row) => row.voucher.totals.totalPerceptions),
 		);
-		const fiscalDeductionsTotal = sumCurrency(
-			vouchers.map((row) => row.voucher.totals.totalDeductions),
+		const fiscalNetDeductionsTotal = sumCurrency(
+			vouchers.map((row) =>
+				roundCurrency(
+					row.voucher.totals.totalDeductions - row.voucher.totals.totalOtherPayments,
+				),
+			),
 		);
 		const fiscalNetPayTotal = sumCurrency(vouchers.map((row) => row.voucher.totals.netPay));
+		const fiscalTechnicalOtherPaymentsTotal = sumCurrency(
+			vouchers.map((row) => row.voucher.totals.totalOtherPayments),
+		);
 
 		expectCurrencyClose(
 			fiscalGrossTotal,
@@ -2149,10 +2298,19 @@ describe('payroll routes', () => {
 			0.01,
 		);
 		expectCurrencyClose(
-			fiscalDeductionsTotal,
-			AET_P10_TDD_LISTA_RAYA_EXPECTED.fiscalVoucherDeductionsTotal,
+			fiscalNetDeductionsTotal,
+			roundCurrency(
+				AET_P10_TDD_LISTA_RAYA_EXPECTED.fiscalVoucherDeductionsTotal -
+					fiscalTechnicalOtherPaymentsTotal,
+			),
 		);
-		expectCurrencyClose(fiscalNetPayTotal, AET_P10_TDD_LISTA_RAYA_EXPECTED.fiscalNetPayTotal);
+		expectCurrencyClose(
+			fiscalNetPayTotal,
+			roundCurrency(
+				AET_P10_TDD_LISTA_RAYA_EXPECTED.fiscalNetPayTotal +
+					fiscalTechnicalOtherPaymentsTotal,
+			),
+		);
 		expect(vouchers[0]?.validationErrors.map((error) => error.code)).toContain(
 			'ISSUER_RFC_REQUIRED',
 		);
@@ -2182,6 +2340,248 @@ describe('payroll routes', () => {
 			AET_P10_TDD_LISTA_RAYA_EXPECTED.employeeCount,
 		);
 		expect(listJson.data?.statusSummary).toEqual(prepareJson.data?.statusSummary);
+
+		dbState.transactionCalled = false;
+		const repeatPrepareResponse = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/prepare`, {
+				paymentDateKey: AET_P10_2026_PERIOD.periodEndDateKey,
+			}),
+		);
+		expect(repeatPrepareResponse.status).toBe(200);
+		expect(dbState.transactionCalled).toBe(true);
+		expect(dbState.payrollFiscalVouchers).toHaveLength(
+			AET_P10_TDD_LISTA_RAYA_EXPECTED.employeeCount,
+		);
+	});
+
+	it('requires an explicit fiscal voucher payment date when preparing vouchers', async () => {
+		seedAetP10ProcessScenario();
+		dbState.sessionRole = 'admin';
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const processResponse = await payrollRoutes.handle(
+			createJsonPostRequest('/payroll/process', {
+				organizationId: dbState.organizationId,
+				periodStartDateKey: AET_P10_2026_PERIOD.periodStartDateKey,
+				periodEndDateKey: AET_P10_2026_PERIOD.periodEndDateKey,
+				paymentFrequency: AET_P10_2026_PERIOD.paymentFrequency,
+			}),
+		);
+		expect(processResponse.status).toBe(200);
+
+		const runId = dbState.payrollRuns[0]?.id;
+		if (typeof runId !== 'string') {
+			throw new Error('Expected persisted payroll run id.');
+		}
+
+		const response = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/prepare`, {}),
+		);
+		const json = (await response.json()) as {
+			data?: {
+				vouchers?: Array<{
+					validationErrors: Array<{ code: string }>;
+					voucher: { paymentDateKey: string | null };
+				}>;
+			};
+		};
+
+		expect(response.status).toBe(200);
+		expect(json.data?.vouchers?.[0]?.voucher.paymentDateKey).toBeNull();
+		expect(json.data?.vouchers?.[0]?.validationErrors.map((error) => error.code)).toContain(
+			'PAYMENT_DATE_REQUIRED',
+		);
+	});
+
+	it('accepts fiscal voucher preparation without a request body for existing clients', async () => {
+		seedAetP10ProcessScenario();
+		dbState.sessionRole = 'admin';
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const processResponse = await payrollRoutes.handle(
+			createJsonPostRequest('/payroll/process', {
+				organizationId: dbState.organizationId,
+				periodStartDateKey: AET_P10_2026_PERIOD.periodStartDateKey,
+				periodEndDateKey: AET_P10_2026_PERIOD.periodEndDateKey,
+				paymentFrequency: AET_P10_2026_PERIOD.paymentFrequency,
+			}),
+		);
+		expect(processResponse.status).toBe(200);
+
+		const runId = dbState.payrollRuns[0]?.id;
+		if (typeof runId !== 'string') {
+			throw new Error('Expected persisted payroll run id.');
+		}
+
+		const response = await payrollRoutes.handle(
+			createApiKeyEmptyPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/prepare`),
+		);
+		const json = (await response.json()) as {
+			data?: {
+				vouchers?: Array<{
+					validationErrors: Array<{ code: string }>;
+					voucher: { paymentDateKey: string | null };
+				}>;
+			};
+		};
+
+		expect(response.status).toBe(200);
+		expect(json.data?.vouchers?.[0]?.voucher.paymentDateKey).toBeNull();
+		expect(json.data?.vouchers?.[0]?.validationErrors.map((error) => error.code)).toContain(
+			'PAYMENT_DATE_REQUIRED',
+		);
+	});
+
+	it('updates existing prepared fiscal vouchers when a payment date is provided later', async () => {
+		seedAetP10ProcessScenario();
+		dbState.sessionRole = 'admin';
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const processResponse = await payrollRoutes.handle(
+			createJsonPostRequest('/payroll/process', {
+				organizationId: dbState.organizationId,
+				periodStartDateKey: AET_P10_2026_PERIOD.periodStartDateKey,
+				periodEndDateKey: AET_P10_2026_PERIOD.periodEndDateKey,
+				paymentFrequency: AET_P10_2026_PERIOD.paymentFrequency,
+			}),
+		);
+		expect(processResponse.status).toBe(200);
+
+		const runId = dbState.payrollRuns[0]?.id;
+		if (typeof runId !== 'string') {
+			throw new Error('Expected persisted payroll run id.');
+		}
+
+		const initialResponse = await payrollRoutes.handle(
+			createApiKeyEmptyPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/prepare`),
+		);
+		expect(initialResponse.status).toBe(200);
+		expect(dbState.payrollFiscalVouchers).toHaveLength(
+			AET_P10_TDD_LISTA_RAYA_EXPECTED.employeeCount,
+		);
+
+		const response = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/prepare`, {
+				paymentDateKey: AET_P10_2026_PERIOD.periodEndDateKey,
+			}),
+		);
+		const json = (await response.json()) as {
+			data?: {
+				vouchers?: Array<{
+					validationErrors: Array<{ code: string }>;
+					voucher: { paymentDateKey: string | null };
+				}>;
+			};
+		};
+
+		expect(response.status).toBe(200);
+		expect(json.data?.vouchers?.[0]?.voucher.paymentDateKey).toBe(
+			AET_P10_2026_PERIOD.periodEndDateKey,
+		);
+		expect(json.data?.vouchers?.[0]?.validationErrors.map((error) => error.code)).not.toContain(
+			'PAYMENT_DATE_REQUIRED',
+		);
+		expect(dbState.payrollFiscalVouchers).toHaveLength(
+			AET_P10_TDD_LISTA_RAYA_EXPECTED.employeeCount,
+		);
+	});
+
+	it('updates payment date when a concurrent bodyless prepare wins the insert race', async () => {
+		seedAetP10ProcessScenario();
+		dbState.sessionRole = 'admin';
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const processResponse = await payrollRoutes.handle(
+			createJsonPostRequest('/payroll/process', {
+				organizationId: dbState.organizationId,
+				periodStartDateKey: AET_P10_2026_PERIOD.periodStartDateKey,
+				periodEndDateKey: AET_P10_2026_PERIOD.periodEndDateKey,
+				paymentFrequency: AET_P10_2026_PERIOD.paymentFrequency,
+			}),
+		);
+		expect(processResponse.status).toBe(200);
+
+		const runId = dbState.payrollRuns[0]?.id;
+		if (typeof runId !== 'string') {
+			throw new Error('Expected persisted payroll run id.');
+		}
+
+		dbState.pendingBodylessFiscalVoucherConflictOnNextInsert = true;
+		const response = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/prepare`, {
+				paymentDateKey: AET_P10_2026_PERIOD.periodEndDateKey,
+			}),
+		);
+		const json = (await response.json()) as {
+			data?: {
+				vouchers?: Array<{
+					validationErrors: Array<{ code: string }>;
+					voucher: { paymentDateKey: string | null };
+				}>;
+			};
+		};
+
+		expect(response.status).toBe(200);
+		expect(json.data?.vouchers?.[0]?.voucher.paymentDateKey).toBe(
+			AET_P10_2026_PERIOD.periodEndDateKey,
+		);
+		expect(json.data?.vouchers?.[0]?.validationErrors.map((error) => error.code)).not.toContain(
+			'PAYMENT_DATE_REQUIRED',
+		);
+		expect(dbState.payrollFiscalVouchers).toHaveLength(
+			AET_P10_TDD_LISTA_RAYA_EXPECTED.employeeCount,
+		);
+	});
+
+	it('does not update a fiscal voucher stamped between read and payment-date update', async () => {
+		seedAetP10ProcessScenario();
+		dbState.sessionRole = 'admin';
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const processResponse = await payrollRoutes.handle(
+			createJsonPostRequest('/payroll/process', {
+				organizationId: dbState.organizationId,
+				periodStartDateKey: AET_P10_2026_PERIOD.periodStartDateKey,
+				periodEndDateKey: AET_P10_2026_PERIOD.periodEndDateKey,
+				paymentFrequency: AET_P10_2026_PERIOD.paymentFrequency,
+			}),
+		);
+		expect(processResponse.status).toBe(200);
+
+		const runId = dbState.payrollRuns[0]?.id;
+		if (typeof runId !== 'string') {
+			throw new Error('Expected persisted payroll run id.');
+		}
+
+		const initialResponse = await payrollRoutes.handle(
+			createApiKeyEmptyPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/prepare`),
+		);
+		expect(initialResponse.status).toBe(200);
+
+		dbState.pendingFiscalVoucherStampBeforeUpdate = true;
+		const response = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/prepare`, {
+				paymentDateKey: AET_P10_2026_PERIOD.periodEndDateKey,
+			}),
+		);
+		const json = (await response.json()) as {
+			data?: {
+				vouchers?: Array<{
+					uuid: string | null;
+					stampedAt: string | null;
+					validationErrors: Array<{ code: string }>;
+					voucher: { paymentDateKey: string | null };
+				}>;
+			};
+		};
+
+		expect(response.status).toBe(200);
+		expect(json.data?.vouchers?.[0]?.uuid).toBe('concurrent-stamp-uuid');
+		expect(json.data?.vouchers?.[0]?.stampedAt).not.toBeNull();
+		expect(json.data?.vouchers?.[0]?.voucher.paymentDateKey).toBeNull();
+		expect(json.data?.vouchers?.[0]?.validationErrors.map((error) => error.code)).toContain(
+			'PAYMENT_DATE_REQUIRED',
+		);
 	});
 
 	it('rejects fiscal voucher preparation for payroll runs that are not processed', async () => {
@@ -2228,6 +2628,33 @@ describe('payroll routes', () => {
 
 		expect(response.status).toBe(403);
 		expect(json.error?.message).toBe('You do not have access to payroll fiscal vouchers');
+	});
+
+	it('does not reveal whether a payroll run exists outside the caller organization', async () => {
+		dbState.sessionRole = 'admin';
+		dbState.payrollRuns = [
+			{
+				id: 'foreign-run-1',
+				organizationId: 'org-foreign',
+				status: 'PROCESSED',
+				paymentFrequency: 'WEEKLY',
+				periodStart: new Date('2026-03-02T06:00:00.000Z'),
+				periodEnd: new Date('2026-03-09T05:59:59.999Z'),
+			},
+		];
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const prepareResponse = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest('/payroll/runs/foreign-run-1/fiscal-vouchers/prepare', {
+				paymentDateKey: '2026-03-08',
+			}),
+		);
+		const listResponse = await payrollRoutes.handle(
+			createApiKeyJsonGetRequest('/payroll/runs/foreign-run-1/fiscal-vouchers'),
+		);
+
+		expect(prepareResponse.status).toBe(404);
+		expect(listResponse.status).toBe(404);
 	});
 
 	it('processes payroll including WORK_OFFSITE and preserves CHECK_OUT_AUTHORIZED paid span behavior', async () => {

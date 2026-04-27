@@ -899,6 +899,20 @@ function pickNewestPayrollCfdiArtifact(
 }
 
 /**
+ * Checks whether a database error represents a unique-constraint conflict.
+ *
+ * @param error - Unknown database error
+ * @returns True when the error is a PostgreSQL unique violation
+ */
+function isUniqueViolationError(error: unknown): boolean {
+	if (!error || typeof error !== 'object' || !('code' in error)) {
+		return false;
+	}
+
+	return (error as { code?: unknown }).code === '23505';
+}
+
+/**
  * Converts a persisted payroll row into a fiscal voucher source row.
  *
  * @param args - Conversion arguments
@@ -2522,27 +2536,72 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				};
 			}
 
+			/**
+			 * Reloads the artifact matching the XML generated for this request.
+			 *
+			 * @returns Persisted artifact with the generated fiscal snapshot hash, if present
+			 */
+			const findArtifactByGeneratedHash = async (): Promise<PayrollCfdiXmlArtifactRow | null> => {
+				const artifactsAfterConflict = (await db
+					.select()
+					.from(payrollCfdiXmlArtifact)
+					.where(
+						and(
+							eq(payrollCfdiXmlArtifact.payrollFiscalVoucherId, voucherId),
+							eq(payrollCfdiXmlArtifact.artifactKind, 'XML_WITHOUT_SEAL'),
+						),
+					)) as PayrollCfdiXmlArtifactRow[];
+				return (
+					artifactsAfterConflict.find(
+						(artifact) =>
+							artifact.fiscalSnapshotHash === payload.artifact?.fiscalSnapshotHash,
+					) ?? null
+				);
+			};
+
 			const existingArtifactToReplace = body.forceRegenerate
-				? existingLatest
+				? (existingSameHash ?? existingLatest)
 				: existingSameHash;
-			const artifactId = existingArtifactToReplace?.id ?? crypto.randomUUID();
+			let artifactId = existingArtifactToReplace?.id ?? crypto.randomUUID();
 			if (existingArtifactToReplace) {
-				await db
-					.update(payrollCfdiXmlArtifact)
-					.set({
-						fiscalSnapshotHash: payload.artifact.fiscalSnapshotHash,
-						xmlHash: payload.artifact.xmlHash,
-						xml: payload.artifact.xml,
-						fiscalArtifactManifest: payload.artifact.fiscalArtifactManifest,
-						validationErrors: payload.artifact.validationErrors,
-						generatedAt: payload.artifact.generatedAt,
-					})
-					.where(eq(payrollCfdiXmlArtifact.id, artifactId));
+				try {
+					await db
+						.update(payrollCfdiXmlArtifact)
+						.set({
+							fiscalSnapshotHash: payload.artifact.fiscalSnapshotHash,
+							xmlHash: payload.artifact.xmlHash,
+							xml: payload.artifact.xml,
+							fiscalArtifactManifest: payload.artifact.fiscalArtifactManifest,
+							validationErrors: payload.artifact.validationErrors,
+							generatedAt: payload.artifact.generatedAt,
+						})
+						.where(eq(payrollCfdiXmlArtifact.id, artifactId));
+				} catch (error) {
+					if (!isUniqueViolationError(error)) {
+						throw error;
+					}
+					const artifactAfterConflict = await findArtifactByGeneratedHash();
+					if (!artifactAfterConflict) {
+						throw error;
+					}
+					artifactId = artifactAfterConflict.id;
+				}
 			} else {
-				await db.insert(payrollCfdiXmlArtifact).values({
-					id: artifactId,
-					...payload.artifact,
-				});
+				try {
+					await db.insert(payrollCfdiXmlArtifact).values({
+						id: artifactId,
+						...payload.artifact,
+					});
+				} catch (error) {
+					if (!isUniqueViolationError(error)) {
+						throw error;
+					}
+					const artifactAfterConflict = await findArtifactByGeneratedHash();
+					if (!artifactAfterConflict) {
+						throw error;
+					}
+					artifactId = artifactAfterConflict.id;
+				}
 			}
 
 			return {

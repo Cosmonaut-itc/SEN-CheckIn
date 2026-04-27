@@ -172,6 +172,7 @@ interface FakeDbState {
 	pendingDeductionMutationBeforeUpdate: FakePendingDeductionMutation | null;
 	pendingBodylessFiscalVoucherConflictOnNextInsert: boolean;
 	pendingFiscalVoucherStampBeforeUpdate: boolean;
+	pendingCfdiXmlArtifactRaceOnNextInsert: boolean;
 }
 
 /**
@@ -801,6 +802,37 @@ function readFakeRowColumn(row: Record<string, unknown>, columnName: string): un
 		return row.employeeId;
 	}
 	return row[columnName];
+}
+
+/**
+ * Checks whether two fake XML artifact rows share the database unique key.
+ *
+ * @param left - Candidate artifact row
+ * @param right - Candidate artifact row
+ * @returns True when the rows share voucher, kind, and snapshot hash
+ */
+function hasSameCfdiXmlArtifactUniqueKey(
+	left: Record<string, unknown>,
+	right: Record<string, unknown>,
+): boolean {
+	return (
+		left.payrollFiscalVoucherId === right.payrollFiscalVoucherId &&
+		left.artifactKind === right.artifactKind &&
+		left.fiscalSnapshotHash === right.fiscalSnapshotHash
+	);
+}
+
+/**
+ * Builds a PostgreSQL-like unique violation error for fake DB tests.
+ *
+ * @returns Unique violation error
+ */
+function createFakeUniqueViolationError(): Error & { code: string } {
+	const error = new Error('duplicate key value violates unique constraint') as Error & {
+		code: string;
+	};
+	error.code = '23505';
+	return error;
 }
 
 /**
@@ -1580,6 +1612,27 @@ function createFakeDb(state: FakeDbState): {
 					);
 				}
 				if (tableName === 'payroll_cfdi_xml_artifact') {
+					if (state.pendingCfdiXmlArtifactRaceOnNextInsert) {
+						state.pendingCfdiXmlArtifactRaceOnNextInsert = false;
+						const concurrentRows = rows.map((row, index) => ({
+							createdAt: new Date(),
+							...row,
+							id: `concurrent-cfdi-xml-artifact-${
+								state.payrollCfdiXmlArtifacts.length + index + 1
+							}`,
+						}));
+						state.payrollCfdiXmlArtifacts.push(...concurrentRows);
+						throw createFakeUniqueViolationError();
+					}
+					if (
+						rows.some((row) =>
+							state.payrollCfdiXmlArtifacts.some((existing) =>
+								hasSameCfdiXmlArtifactUniqueKey(existing, row),
+							),
+						)
+					) {
+						throw createFakeUniqueViolationError();
+					}
 					state.payrollCfdiXmlArtifacts.push(
 						...rows.map((row, index) => ({
 							id:
@@ -1733,6 +1786,19 @@ function createFakeDb(state: FakeDbState): {
 						for (const artifact of state.payrollCfdiXmlArtifacts) {
 							if (!matchesFakeRowCondition(artifact, condition)) {
 								continue;
+							}
+							const updatedArtifact = { ...artifact, ...values };
+							if (
+								state.payrollCfdiXmlArtifacts.some(
+									(existing) =>
+										existing.id !== artifact.id &&
+										hasSameCfdiXmlArtifactUniqueKey(
+											existing,
+											updatedArtifact,
+										),
+								)
+							) {
+								throw createFakeUniqueViolationError();
 							}
 							Object.assign(artifact, values);
 							updatedRows.push({ id: artifact.id });
@@ -1892,6 +1958,7 @@ const dbState: FakeDbState = {
 	pendingDeductionMutationBeforeUpdate: null,
 	pendingBodylessFiscalVoucherConflictOnNextInsert: false,
 	pendingFiscalVoucherStampBeforeUpdate: false,
+	pendingCfdiXmlArtifactRaceOnNextInsert: false,
 };
 
 const fakeDb = createFakeDb(dbState);
@@ -1993,6 +2060,7 @@ describe('payroll routes', () => {
 		dbState.pendingDeductionMutationBeforeUpdate = null;
 		dbState.pendingBodylessFiscalVoucherConflictOnNextInsert = false;
 		dbState.pendingFiscalVoucherStampBeforeUpdate = false;
+		dbState.pendingCfdiXmlArtifactRaceOnNextInsert = false;
 	});
 
 	afterEach(() => {
@@ -3431,6 +3499,79 @@ describe('payroll routes', () => {
 			firstFiscalSnapshotHash,
 		);
 		expect(dbState.payrollCfdiXmlArtifacts[0]?.xml).toContain('Departamento="Finanzas"');
+	});
+
+	it('returns the concurrently inserted XML artifact when idempotent generation races on the same snapshot hash', async () => {
+		const { runId, voucherId } = seedValidPayrollCfdiXmlScenario({
+			runId: 'processed-run-xml-race',
+			voucherId: 'voucher-xml-race',
+		});
+		dbState.pendingCfdiXmlArtifactRaceOnNextInsert = true;
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const response = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/${voucherId}/xml`, {
+				issuedAt: '2026-04-12T12:00:00.000Z',
+			}),
+		);
+		const json = (await response.json()) as {
+			data?: { artifactId: string | null; status: string; xmlHash: string | null };
+		};
+
+		expect(response.status).toBe(200);
+		expect(json.data?.artifactId).toBe('concurrent-cfdi-xml-artifact-1');
+		expect(json.data?.status).toBe('VALID');
+		expect(json.data?.xmlHash).toBe(
+			dbState.payrollCfdiXmlArtifacts[0]?.xmlHash as string,
+		);
+		expect(dbState.payrollCfdiXmlArtifacts).toHaveLength(1);
+	});
+
+	it('force-regeneration reuses an existing target-hash artifact instead of updating another artifact into a duplicate key', async () => {
+		const { runId, voucherId } = seedValidPayrollCfdiXmlScenario({
+			runId: 'processed-run-xml-force-duplicate',
+			voucherId: 'voucher-xml-force-duplicate',
+		});
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const firstResponse = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/${voucherId}/xml`, {
+				issuedAt: '2026-04-12T12:00:00.000Z',
+			}),
+		);
+		const targetArtifact = dbState.payrollCfdiXmlArtifacts[0];
+		if (!targetArtifact) {
+			throw new Error('Expected initial XML artifact.');
+		}
+		dbState.payrollCfdiXmlArtifacts.push({
+			...targetArtifact,
+			id: 'newer-artifact-different-hash',
+			fiscalSnapshotHash: 'different-snapshot-hash',
+			xmlHash: 'different-xml-hash',
+			generatedAt: new Date('2026-04-12T13:00:00.000Z'),
+		});
+
+		const forceResponse = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/${voucherId}/xml`, {
+				issuedAt: '2026-04-12T12:00:00.000Z',
+				forceRegenerate: true,
+			}),
+		);
+		const json = (await forceResponse.json()) as {
+			data?: { artifactId: string | null; xmlHash: string | null };
+		};
+		const uniqueKeys = new Set(
+			dbState.payrollCfdiXmlArtifacts.map(
+				(artifact) =>
+					`${artifact.payrollFiscalVoucherId}:${artifact.artifactKind}:${artifact.fiscalSnapshotHash}`,
+			),
+		);
+
+		expect(firstResponse.status).toBe(200);
+		expect(forceResponse.status).toBe(200);
+		expect(json.data?.artifactId).toBe(targetArtifact.id as string);
+		expect(json.data?.xmlHash).toBe(targetArtifact.xmlHash as string);
+		expect(uniqueKeys.size).toBe(dbState.payrollCfdiXmlArtifacts.length);
 	});
 
 	it('blocks forced XML regeneration for stamped vouchers instead of reusing an existing artifact', async () => {

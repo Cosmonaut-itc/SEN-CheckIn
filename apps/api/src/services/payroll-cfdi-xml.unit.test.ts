@@ -523,6 +523,49 @@ describe('payroll CFDI XML validation', () => {
 				buildWeeklyInput({ payroll: { daysPaid: -0 } }),
 				'XML_DAYS_PAID_REQUIRED',
 			],
+			[
+				'deductions exceed subtotal',
+				buildWeeklyInput({
+					deductions: [
+						{
+							internalType: 'ISR',
+							internalCode: 'ISR',
+							satTypeCode: '002',
+							employerCode: '101',
+							conceptLabel: 'ISR',
+							amount: 3000,
+						},
+					],
+				}),
+				'XML_TOTALS_MISMATCH',
+			],
+			[
+				'malformed payment date key',
+				buildWeeklyInput({ payroll: { paymentDateKey: '2026/04/18' } }),
+				'XML_PAYMENT_DATE_REQUIRED',
+			],
+			[
+				'impossible period start date key',
+				buildWeeklyInput({ payroll: { periodStartDateKey: '2026-02-30' } }),
+				'XML_PERIOD_DATES_REQUIRED',
+			],
+			[
+				'period end before period start',
+				buildWeeklyInput({
+					payroll: {
+						periodStartDateKey: '2026-04-19',
+						periodEndDateKey: '2026-04-13',
+					},
+				}),
+				'XML_PERIOD_DATES_REQUIRED',
+			],
+			[
+				'employment start after period end',
+				buildWeeklyInput({
+					receiver: { employmentStartDateKey: '2026-04-20' },
+				}),
+				'XML_EMPLOYMENT_START_DATE_REQUIRED',
+			],
 		];
 
 		for (const [label, input, code] of cases) {

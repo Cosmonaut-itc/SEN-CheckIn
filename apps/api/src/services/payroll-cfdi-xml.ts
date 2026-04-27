@@ -334,9 +334,11 @@ export function validatePayrollCfdiXmlInput(
 		);
 	}
 
+	validatePayrollDates(input, errors);
 	validatePerceptions(input.perceptions, errors);
 	validateDeductions(input.deductions, errors);
 	validateOtherPayments(input.otherPayments, errors);
+	validateTotals(input, errors);
 
 	return {
 		status: errors.length > 0 ? 'BLOCKED' : 'READY_TO_STAMP',
@@ -652,6 +654,83 @@ function calculateTotals(input: PayrollCfdiBuildInput): PayrollCfdiTotals {
 		totalOtherDeductions,
 		hasOtherPaymentsNode: input.otherPayments.length > 0,
 	};
+}
+
+/**
+ * Validates strict calendar date keys and payroll date ordering.
+ *
+ * @param input - Payroll CFDI build input
+ * @param errors - Mutable validation issue list
+ */
+function validatePayrollDates(
+	input: PayrollCfdiBuildInput,
+	errors: PayrollCfdiValidationIssue[],
+): void {
+	const paymentDate = parseStrictDateKey(input.payroll.paymentDateKey);
+	const periodStartDate = parseStrictDateKey(input.payroll.periodStartDateKey);
+	const periodEndDate = parseStrictDateKey(input.payroll.periodEndDateKey);
+	const employmentStartDate = parseStrictDateKey(input.receiver.employmentStartDateKey);
+
+	if (input.payroll.paymentDateKey !== null && paymentDate === null) {
+		errors.push(createIssue('XML_PAYMENT_DATE_REQUIRED', 'payroll.paymentDateKey'));
+	}
+
+	if (
+		(input.payroll.periodStartDateKey !== null && periodStartDate === null) ||
+		(input.payroll.periodEndDateKey !== null && periodEndDate === null) ||
+		(periodStartDate !== null &&
+			periodEndDate !== null &&
+			periodEndDate.getTime() < periodStartDate.getTime())
+	) {
+		errors.push(createIssue('XML_PERIOD_DATES_REQUIRED', 'payroll.periodDates'));
+	}
+
+	if (
+		(input.receiver.employmentStartDateKey !== null && employmentStartDate === null) ||
+		(employmentStartDate !== null &&
+			periodEndDate !== null &&
+			periodEndDate.getTime() < employmentStartDate.getTime())
+	) {
+		errors.push(
+			createIssue('XML_EMPLOYMENT_START_DATE_REQUIRED', 'receiver.employmentStartDateKey'),
+		);
+	}
+}
+
+/**
+ * Validates aggregate CFDI totals after line-level validation.
+ *
+ * @param input - Payroll CFDI build input
+ * @param errors - Mutable validation issue list
+ */
+function validateTotals(input: PayrollCfdiBuildInput, errors: PayrollCfdiValidationIssue[]): void {
+	if (!hasValidTotalAmounts(input)) {
+		return;
+	}
+
+	const totals = calculateTotals(input);
+
+	if (totals.discount > totals.subtotal || totals.total < 0) {
+		errors.push(createIssue('XML_TOTALS_MISMATCH', 'totals.total'));
+	}
+}
+
+/**
+ * Checks whether all total-bearing amounts can safely be aggregated.
+ *
+ * @param input - Payroll CFDI build input
+ * @returns True when amounts are finite and nonnegative
+ */
+function hasValidTotalAmounts(input: PayrollCfdiBuildInput): boolean {
+	const amounts = [
+		...input.perceptions.flatMap((line) => [line.taxedAmount, line.exemptAmount]),
+		...input.deductions.map((line) => line.amount),
+		...input.otherPayments.map((line) => line.amount),
+	];
+
+	return amounts.every(
+		(amount) => Number.isFinite(amount) && amount >= 0 && !Object.is(amount, -0),
+	);
 }
 
 /**
@@ -994,13 +1073,46 @@ function requireDatePart(value: string | undefined, partName: string): string {
  * @returns UTC calendar date
  */
 function parseDateKeyAsUtc(value: string): Date {
-	const [year, month, day] = value.split('-').map(Number);
+	const parsed = parseStrictDateKey(value);
 
-	if (year === undefined || month === undefined || day === undefined) {
+	if (parsed === null) {
 		throw new Error(`Invalid date key: ${value}.`);
 	}
 
-	return new Date(Date.UTC(year, month - 1, day));
+	return parsed;
+}
+
+/**
+ * Parses a strict YYYY-MM-DD calendar date key without rollover.
+ *
+ * @param value - Candidate date key
+ * @returns UTC calendar date, or null when invalid
+ */
+function parseStrictDateKey(value: string | null): Date | null {
+	if (!hasText(value)) {
+		return null;
+	}
+
+	const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+	if (!match) {
+		return null;
+	}
+
+	const year = Number(match[1]);
+	const month = Number(match[2]);
+	const day = Number(match[3]);
+	const date = new Date(Date.UTC(year, month - 1, day));
+
+	if (
+		date.getUTCFullYear() !== year ||
+		date.getUTCMonth() !== month - 1 ||
+		date.getUTCDate() !== day
+	) {
+		return null;
+	}
+
+	return date;
 }
 
 /**

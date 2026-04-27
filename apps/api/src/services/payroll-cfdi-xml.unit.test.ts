@@ -378,14 +378,16 @@ describe('payroll CFDI XML builder totals', () => {
 			}),
 		);
 
-		expect(result.manifest).toEqual(manifest);
+		expect(result).not.toHaveProperty('manifest');
 		expect(result.fiscalArtifactManifest).toEqual(manifest);
-		expect(result.manifest.exerciseYear).toBe(2026);
-		expect(result.manifest.cfdiVersion).toBe('4.0');
-		expect(result.manifest.payrollXsdUrl).toBe(
+		expect(result.fiscalArtifactManifest.exerciseYear).toBe(2026);
+		expect(result.fiscalArtifactManifest.cfdiVersion).toBe('4.0');
+		expect(result.fiscalArtifactManifest.payrollXsdUrl).toBe(
 			'https://www.sat.gob.mx/sitio_internet/cfd/nomina/nomina12.xsd',
 		);
-		expect(result.manifest.validationMatrixVersion).toBe('nomina12-matrix-2026-04');
+		expect(result.fiscalArtifactManifest.validationMatrixVersion).toBe(
+			'nomina12-matrix-2026-04',
+		);
 	});
 });
 

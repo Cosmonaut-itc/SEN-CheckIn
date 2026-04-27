@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import {
 	buildPayrollCfdiXml,
 	type FiscalArtifactManifest,
+	formatCfdiDate,
 	type PayrollCfdiBuildInput,
 	type PayrollCfdiValidationIssue,
 	type PayrollCfdiValidationStatus,
@@ -112,7 +113,9 @@ export function mapFiscalVoucherToPayrollCfdiBuildInput(args: {
 			department: readString(receiver.department),
 			position: readString(receiver.position),
 			positionRisk: readString(receiver.positionRisk),
-			paymentFrequency: readString(voucher.paymentFrequency),
+			paymentFrequency: mapPayrollPaymentFrequencyToSatCode(
+				readString(voucher.paymentFrequency),
+			),
 			bankAccount: readString(receiver.bankAccount),
 			baseContributionSalary: readNumber(receiver.baseContributionSalary),
 			integratedDailySalary: readNumber(receiver.integratedDailySalary),
@@ -288,10 +291,11 @@ export function buildPayrollCfdiXmlDownloadResponse(args: {
 	voucherId: string;
 	artifact: PayrollCfdiXmlArtifactRow;
 }): Response {
+	const filename = `${sanitizeContentDispositionFilenameToken(args.voucherId)}-${sanitizeContentDispositionFilenameToken(args.artifact.artifactKind)}.xml`;
 	return new Response(args.artifact.xml, {
 		headers: {
 			'Content-Type': 'application/xml; charset=utf-8',
-			'Content-Disposition': `attachment; filename="${args.voucherId}-${args.artifact.artifactKind}.xml"`,
+			'Content-Disposition': `attachment; filename="${filename}"`,
 			'Cache-Control': 'no-store',
 		},
 	});
@@ -305,7 +309,7 @@ export function buildPayrollCfdiXmlDownloadResponse(args: {
  */
 export function buildDefaultFiscalArtifactManifest(issuedAt: Date): FiscalArtifactManifest {
 	return {
-		exerciseYear: issuedAt.getFullYear(),
+		exerciseYear: Number(formatCfdiDate(issuedAt).slice(0, 4)),
 		cfdiVersion: '4.0',
 		payrollComplementVersion: '1.2',
 		source: 'SAT',
@@ -328,6 +332,35 @@ export function buildDefaultFiscalArtifactManifest(issuedAt: Date): FiscalArtifa
  */
 function toArtifactStatus(status: PayrollCfdiValidationStatus): 'VALID' | 'BLOCKED' {
 	return status === 'READY_TO_STAMP' ? 'VALID' : 'BLOCKED';
+}
+
+/**
+ * Maps internal payroll frequency enums to SAT c_PeriodicidadPago catalog codes.
+ *
+ * @param paymentFrequency - Persisted payroll frequency value
+ * @returns SAT catalog code or the original catalog-like value
+ */
+function mapPayrollPaymentFrequencyToSatCode(paymentFrequency: string | null): string | null {
+	switch (paymentFrequency) {
+		case 'WEEKLY':
+			return '02';
+		case 'BIWEEKLY':
+			return '04';
+		case 'MONTHLY':
+			return '05';
+		default:
+			return paymentFrequency;
+	}
+}
+
+/**
+ * Keeps Content-Disposition filename tokens free of separators and control characters.
+ *
+ * @param value - Filename token value
+ * @returns Safe ASCII filename token
+ */
+function sanitizeContentDispositionFilenameToken(value: string): string {
+	return value.replace(/[^A-Za-z0-9._-]/g, '_');
 }
 
 /**

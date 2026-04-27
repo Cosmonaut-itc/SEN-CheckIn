@@ -127,6 +127,7 @@ describe('payroll CFDI XML artifacts', () => {
 		expect(input.receiver.employeeNumber).toBeNull();
 		expect(input.receiver.federalEntity).toBeNull();
 		expect(input).not.toHaveProperty('realPayrollComplementPay');
+		expect(input.receiver.paymentFrequency).toBe('02');
 		expect(input.perceptions[0]).toMatchObject({
 			satTypeCode: '001',
 			employerCode: 'SALARY',
@@ -139,6 +140,18 @@ describe('payroll CFDI XML artifacts', () => {
 			catalogVersion: '2026',
 			validationMatrixVersion: 'phase-3-v1',
 			generatedAt: '2026-04-12T12:00:00.000Z',
+		});
+	});
+
+	it('uses the CFDI Mexico City year for year-boundary fiscal manifests', () => {
+		const issuedAt = new Date('2025-01-01T04:00:00.000Z');
+		const row = buildVoucherRow();
+
+		const input = mapFiscalVoucherToPayrollCfdiBuildInput({ voucherRow: row, issuedAt });
+
+		expect(input.fiscalArtifactManifest).toMatchObject({
+			exerciseYear: 2024,
+			generatedAt: '2025-01-01T04:00:00.000Z',
 		});
 	});
 
@@ -203,5 +216,20 @@ describe('payroll CFDI XML artifacts', () => {
 			'attachment; filename="voucher-1-XML_WITHOUT_SEAL.xml"',
 		);
 		expect(await response.text()).toBe('<cfdi:Comprobante Version="4.0"/>');
+	});
+
+	it('sanitizes XML download filenames before writing Content-Disposition', () => {
+		const response = buildPayrollCfdiXmlDownloadResponse({
+			voucherId: 'voucher"\r\nbad;id',
+			artifact: buildArtifactRow(),
+		});
+		const contentDisposition = response.headers.get('content-disposition') ?? '';
+
+		expect(contentDisposition).toBe(
+			'attachment; filename="voucher___bad_id-XML_WITHOUT_SEAL.xml"',
+		);
+		expect(contentDisposition).not.toContain('\r');
+		expect(contentDisposition).not.toContain('\n');
+		expect(contentDisposition).not.toContain(';id');
 	});
 });

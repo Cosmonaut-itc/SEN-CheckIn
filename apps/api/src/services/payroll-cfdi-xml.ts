@@ -144,7 +144,6 @@ export interface PayrollCfdiBuildResult {
 	xmlWithoutSeal: string;
 	xmlHash: string;
 	validation: PayrollCfdiValidationResult;
-	manifest: FiscalArtifactManifest;
 	fiscalArtifactManifest: FiscalArtifactManifest;
 }
 
@@ -369,7 +368,6 @@ export function buildPayrollCfdiXml(input: PayrollCfdiBuildInput): PayrollCfdiBu
 		xmlWithoutSeal,
 		xmlHash,
 		validation,
-		manifest: input.fiscalArtifactManifest,
 		fiscalArtifactManifest: input.fiscalArtifactManifest,
 	};
 }

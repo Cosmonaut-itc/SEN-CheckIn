@@ -1613,25 +1613,25 @@ function createFakeDb(state: FakeDbState): {
 							})),
 					);
 				}
-					if (tableName === 'payroll_cfdi_xml_artifact') {
-						if (state.pendingFiscalVoucherStampBeforeCfdiXmlWrite) {
-							const artifactVoucherIds = rows
-								.map((row) => row.payrollFiscalVoucherId)
-								.filter((id): id is string => typeof id === 'string');
-							const voucher = state.payrollFiscalVouchers.find((candidate) =>
-								artifactVoucherIds.includes(candidate.id as string),
-							);
-							if (voucher) {
-								voucher.uuid = 'concurrent-stamp-uuid';
-								voucher.stampedAt = new Date('2026-04-12T13:00:00.000Z');
-								voucher.status = 'STAMPED';
-							}
-							state.pendingFiscalVoucherStampBeforeCfdiXmlWrite = false;
+				if (tableName === 'payroll_cfdi_xml_artifact') {
+					if (state.pendingFiscalVoucherStampBeforeCfdiXmlWrite) {
+						const artifactVoucherIds = rows
+							.map((row) => row.payrollFiscalVoucherId)
+							.filter((id): id is string => typeof id === 'string');
+						const voucher = state.payrollFiscalVouchers.find((candidate) =>
+							artifactVoucherIds.includes(candidate.id as string),
+						);
+						if (voucher) {
+							voucher.uuid = 'concurrent-stamp-uuid';
+							voucher.stampedAt = new Date('2026-04-12T13:00:00.000Z');
+							voucher.status = 'STAMPED';
 						}
-						if (state.pendingCfdiXmlArtifactRaceOnNextInsert) {
-							state.pendingCfdiXmlArtifactRaceOnNextInsert = false;
-							const concurrentRows = rows.map((row, index) => ({
-								createdAt: new Date(),
+						state.pendingFiscalVoucherStampBeforeCfdiXmlWrite = false;
+					}
+					if (state.pendingCfdiXmlArtifactRaceOnNextInsert) {
+						state.pendingCfdiXmlArtifactRaceOnNextInsert = false;
+						const concurrentRows = rows.map((row, index) => ({
+							createdAt: new Date(),
 							...row,
 							id: `concurrent-cfdi-xml-artifact-${
 								state.payrollCfdiXmlArtifacts.length + index + 1
@@ -1770,13 +1770,13 @@ function createFakeDb(state: FakeDbState): {
 								(value): value is string => typeof value === 'string',
 							) ?? [];
 						state.payrollFiscalVoucherUpdateCount += 1;
-							if (
-								state.pendingFiscalVoucherStampBeforeUpdate ||
-								state.pendingFiscalVoucherStampBeforeCfdiXmlWrite
-							) {
-								for (const voucher of state.payrollFiscalVouchers) {
-									const shouldStamp =
-										voucher.id === voucherId ||
+						if (
+							state.pendingFiscalVoucherStampBeforeUpdate ||
+							state.pendingFiscalVoucherStampBeforeCfdiXmlWrite
+						) {
+							for (const voucher of state.payrollFiscalVouchers) {
+								const shouldStamp =
+									voucher.id === voucherId ||
 									(voucherId === null &&
 										voucherIds.includes(voucher.id as string));
 								if (!shouldStamp) {
@@ -1784,12 +1784,12 @@ function createFakeDb(state: FakeDbState): {
 								}
 								voucher.uuid = 'concurrent-stamp-uuid';
 								voucher.stampedAt = new Date('2026-03-09T00:00:00.000Z');
-									voucher.status = 'STAMPED';
-									break;
-								}
-								state.pendingFiscalVoucherStampBeforeUpdate = false;
-								state.pendingFiscalVoucherStampBeforeCfdiXmlWrite = false;
+								voucher.status = 'STAMPED';
+								break;
 							}
+							state.pendingFiscalVoucherStampBeforeUpdate = false;
+							state.pendingFiscalVoucherStampBeforeCfdiXmlWrite = false;
+						}
 
 						const updatedRows: Record<string, unknown>[] = [];
 						for (const voucher of state.payrollFiscalVouchers) {
@@ -1803,33 +1803,29 @@ function createFakeDb(state: FakeDbState): {
 						return updatedRows;
 					}
 
-						if (tableName === 'payroll_cfdi_xml_artifact') {
-							const updatedRows: Record<string, unknown>[] = [];
-							for (const artifact of state.payrollCfdiXmlArtifacts) {
-								if (!matchesFakeRowCondition(artifact, condition)) {
-									continue;
+					if (tableName === 'payroll_cfdi_xml_artifact') {
+						const updatedRows: Record<string, unknown>[] = [];
+						for (const artifact of state.payrollCfdiXmlArtifacts) {
+							if (!matchesFakeRowCondition(artifact, condition)) {
+								continue;
+							}
+							if (state.pendingFiscalVoucherStampBeforeCfdiXmlWrite) {
+								const voucher = state.payrollFiscalVouchers.find(
+									(candidate) => candidate.id === artifact.payrollFiscalVoucherId,
+								);
+								if (voucher) {
+									voucher.uuid = 'concurrent-stamp-uuid';
+									voucher.stampedAt = new Date('2026-04-12T13:00:00.000Z');
+									voucher.status = 'STAMPED';
 								}
-								if (state.pendingFiscalVoucherStampBeforeCfdiXmlWrite) {
-									const voucher = state.payrollFiscalVouchers.find(
-										(candidate) =>
-											candidate.id === artifact.payrollFiscalVoucherId,
-									);
-									if (voucher) {
-										voucher.uuid = 'concurrent-stamp-uuid';
-										voucher.stampedAt = new Date('2026-04-12T13:00:00.000Z');
-										voucher.status = 'STAMPED';
-									}
-									state.pendingFiscalVoucherStampBeforeCfdiXmlWrite = false;
-								}
-								const updatedArtifact = { ...artifact, ...values };
-								if (
-									state.payrollCfdiXmlArtifacts.some(
+								state.pendingFiscalVoucherStampBeforeCfdiXmlWrite = false;
+							}
+							const updatedArtifact = { ...artifact, ...values };
+							if (
+								state.payrollCfdiXmlArtifacts.some(
 									(existing) =>
 										existing.id !== artifact.id &&
-										hasSameCfdiXmlArtifactUniqueKey(
-											existing,
-											updatedArtifact,
-										),
+										hasSameCfdiXmlArtifactUniqueKey(existing, updatedArtifact),
 								)
 							) {
 								throw createFakeUniqueViolationError();
@@ -3492,59 +3488,56 @@ describe('payroll routes', () => {
 		expect(downloadResponse.status).toBe(200);
 		expect(downloadResponse.headers.get('content-type')).toBe('application/xml; charset=utf-8');
 		expect(downloadResponse.headers.get('cache-control')).toBe('no-store');
-			expect(downloadResponse.headers.get('content-disposition')).toContain(
-				'voucher-xml-valid-XML_WITHOUT_SEAL.xml',
-			);
-			expect(await downloadResponse.text()).toContain('<cfdi:Comprobante');
+		expect(downloadResponse.headers.get('content-disposition')).toContain(
+			'voucher-xml-valid-XML_WITHOUT_SEAL.xml',
+		);
+		expect(await downloadResponse.text()).toContain('<cfdi:Comprobante');
+	});
+
+	it('blocks XML generation for persisted BLOCKED fiscal vouchers before building artifacts', async () => {
+		const { runId, voucherId } = seedValidPayrollCfdiXmlScenario({
+			runId: 'processed-run-xml-blocked-source',
+			voucherId: 'voucher-xml-blocked-source',
 		});
+		const voucher = dbState.payrollFiscalVouchers[0];
+		if (!voucher) {
+			throw new Error('Expected seeded fiscal voucher.');
+		}
+		voucher.status = 'BLOCKED';
+		voucher.validationErrors = [
+			{
+				code: 'UNMAPPED_DEDUCTION',
+				field: 'deductions',
+				message: 'Deduction requires SAT mapping before XML generation.',
+			},
+		];
 
-		it('blocks XML generation for persisted BLOCKED fiscal vouchers before building artifacts', async () => {
-			const { runId, voucherId } = seedValidPayrollCfdiXmlScenario({
-				runId: 'processed-run-xml-blocked-source',
-				voucherId: 'voucher-xml-blocked-source',
-			});
-			const voucher = dbState.payrollFiscalVouchers[0];
-			if (!voucher) {
-				throw new Error('Expected seeded fiscal voucher.');
-			}
-			voucher.status = 'BLOCKED';
-			voucher.validationErrors = [
-				{
-					code: 'UNMAPPED_DEDUCTION',
-					field: 'deductions',
-					message: 'Deduction requires SAT mapping before XML generation.',
-				},
-			];
-
-			const { payrollRoutes } = await import('./payroll.js');
-			const response = await payrollRoutes.handle(
-				createApiKeyJsonPostRequest(
-					`/payroll/runs/${runId}/fiscal-vouchers/${voucherId}/xml`,
-					{
-						issuedAt: '2026-04-12T12:00:00.000Z',
-					},
-				),
-			);
-			const json = (await response.json()) as {
-				data?: {
-					artifactId: string | null;
-					status: string;
-					errors: Array<{ code: string }>;
-					xml?: string;
-				};
+		const { payrollRoutes } = await import('./payroll.js');
+		const response = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/${voucherId}/xml`, {
+				issuedAt: '2026-04-12T12:00:00.000Z',
+			}),
+		);
+		const json = (await response.json()) as {
+			data?: {
+				artifactId: string | null;
+				status: string;
+				errors: Array<{ code: string }>;
+				xml?: string;
 			};
+		};
 
-			expect(response.status).toBe(422);
-			expect(json.data?.artifactId).toBeNull();
-			expect(json.data?.status).toBe('BLOCKED');
-			expect(json.data).not.toHaveProperty('xml');
-			expect(json.data?.errors.map((error) => error.code)).toContain('UNMAPPED_DEDUCTION');
-			expect(dbState.payrollCfdiXmlArtifacts).toHaveLength(0);
-		});
+		expect(response.status).toBe(422);
+		expect(json.data?.artifactId).toBeNull();
+		expect(json.data?.status).toBe('BLOCKED');
+		expect(json.data).not.toHaveProperty('xml');
+		expect(json.data?.errors.map((error) => error.code)).toContain('UNMAPPED_DEDUCTION');
+		expect(dbState.payrollCfdiXmlArtifacts).toHaveLength(0);
+	});
 
-		it('force-regenerates XML by replacing the existing unstamped voucher artifact even when the snapshot hash changes', async () => {
-			const { runId, voucherId } = seedValidPayrollCfdiXmlScenario({
-				runId: 'processed-run-xml-force',
+	it('force-regenerates XML by replacing the existing unstamped voucher artifact even when the snapshot hash changes', async () => {
+		const { runId, voucherId } = seedValidPayrollCfdiXmlScenario({
+			runId: 'processed-run-xml-force',
 			voucherId: 'voucher-xml-force',
 		});
 
@@ -3606,9 +3599,7 @@ describe('payroll routes', () => {
 		expect(json.data?.artifactId).toBe('concurrent-cfdi-xml-artifact-1');
 		expect(json.data?.status).toBe('VALID');
 		expect(json.data?.xmlHash).toBe('persisted-concurrent-xml-hash');
-		expect(dbState.payrollCfdiXmlArtifacts[0]?.xmlHash).toBe(
-			'persisted-concurrent-xml-hash',
-		);
+		expect(dbState.payrollCfdiXmlArtifacts[0]?.xmlHash).toBe('persisted-concurrent-xml-hash');
 		expect(dbState.payrollCfdiXmlArtifacts).toHaveLength(1);
 	});
 
@@ -3689,33 +3680,73 @@ describe('payroll routes', () => {
 
 		expect(firstResponse.status).toBe(200);
 		expect(forceResponse.status).toBe(409);
-			expect(json.error?.message).toBe('Stamped fiscal vouchers cannot regenerate XML artifacts');
-			expect(dbState.payrollCfdiXmlArtifacts).toHaveLength(1);
+		expect(json.error?.message).toBe('Stamped fiscal vouchers cannot regenerate XML artifacts');
+		expect(dbState.payrollCfdiXmlArtifacts).toHaveLength(1);
+	});
+
+	it('returns an existing XML artifact for stamped vouchers before applying readiness blocking', async () => {
+		const { runId, voucherId } = seedValidPayrollCfdiXmlScenario({
+			runId: 'processed-run-xml-stamped-idempotent',
+			voucherId: 'voucher-xml-stamped-idempotent',
 		});
 
-		it('does not persist XML if a fiscal voucher is stamped before the artifact write', async () => {
-			const { runId, voucherId } = seedValidPayrollCfdiXmlScenario({
-				runId: 'processed-run-xml-stamp-race',
-				voucherId: 'voucher-xml-stamp-race',
-			});
-			dbState.pendingFiscalVoucherStampBeforeCfdiXmlWrite = true;
+		const { payrollRoutes } = await import('./payroll.js');
+		const firstResponse = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/${voucherId}/xml`, {
+				issuedAt: '2026-04-12T12:00:00.000Z',
+			}),
+		);
+		const firstJson = (await firstResponse.json()) as {
+			data?: { artifactId: string | null; xmlHash: string | null };
+		};
+		const voucher = dbState.payrollFiscalVouchers[0];
+		if (!voucher) {
+			throw new Error('Expected seeded fiscal voucher.');
+		}
+		voucher.status = 'STAMPED';
+		voucher.uuid = 'stamped-uuid-1';
+		voucher.stampedAt = new Date('2026-04-12T13:00:00.000Z');
 
-			const { payrollRoutes } = await import('./payroll.js');
-			const response = await payrollRoutes.handle(
-				createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/${voucherId}/xml`, {
-					issuedAt: '2026-04-12T12:00:00.000Z',
-				}),
-			);
-			const json = (await response.json()) as { error?: { message?: string } };
+		const retryResponse = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/${voucherId}/xml`, {
+				issuedAt: '2026-04-12T12:00:00.000Z',
+			}),
+		);
+		const retryJson = (await retryResponse.json()) as {
+			data?: { artifactId: string | null; xmlHash: string | null; status: string };
+		};
 
-			expect(response.status).toBe(409);
-			expect(json.error?.message).toBe('Stamped fiscal vouchers cannot regenerate XML artifacts');
-			expect(dbState.payrollCfdiXmlArtifacts).toHaveLength(0);
+		expect(firstResponse.status).toBe(200);
+		expect(retryResponse.status).toBe(200);
+		expect(retryJson.data?.artifactId).toBe(firstJson.data?.artifactId);
+		expect(retryJson.data?.xmlHash).toBe(firstJson.data?.xmlHash);
+		expect(retryJson.data?.status).toBe('VALID');
+		expect(dbState.payrollCfdiXmlArtifacts).toHaveLength(1);
+	});
+
+	it('does not persist XML if a fiscal voucher is stamped before the artifact write', async () => {
+		const { runId, voucherId } = seedValidPayrollCfdiXmlScenario({
+			runId: 'processed-run-xml-stamp-race',
+			voucherId: 'voucher-xml-stamp-race',
 		});
+		dbState.pendingFiscalVoucherStampBeforeCfdiXmlWrite = true;
 
-		it('rejects fiscal voucher preparation for payroll runs that are not processed', async () => {
-			dbState.sessionRole = 'admin';
-			dbState.payrollRuns = [
+		const { payrollRoutes } = await import('./payroll.js');
+		const response = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/${voucherId}/xml`, {
+				issuedAt: '2026-04-12T12:00:00.000Z',
+			}),
+		);
+		const json = (await response.json()) as { error?: { message?: string } };
+
+		expect(response.status).toBe(409);
+		expect(json.error?.message).toBe('Stamped fiscal vouchers cannot regenerate XML artifacts');
+		expect(dbState.payrollCfdiXmlArtifacts).toHaveLength(0);
+	});
+
+	it('rejects fiscal voucher preparation for payroll runs that are not processed', async () => {
+		dbState.sessionRole = 'admin';
+		dbState.payrollRuns = [
 			{
 				id: 'draft-run-1',
 				organizationId: dbState.organizationId,

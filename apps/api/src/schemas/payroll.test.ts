@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test';
 
 import {
 	payrollEmployeeBreakdownSchema,
+	payrollCfdiXmlGenerateSchema,
 	payrollWarningSchema,
 } from './payroll.js';
 
@@ -19,5 +20,11 @@ describe('payroll schemas', () => {
 	it('exposes lunch-break deduction metrics in employee breakdowns', () => {
 		expect(payrollEmployeeBreakdownSchema.shape.lunchBreakAutoDeductedDays).toBeDefined();
 		expect(payrollEmployeeBreakdownSchema.shape.lunchBreakAutoDeductedMinutes).toBeDefined();
+	});
+
+	it('defaults omitted CFDI XML generation body to non-forced regeneration', () => {
+		expect(payrollCfdiXmlGenerateSchema.parse(undefined)).toEqual({
+			forceRegenerate: false,
+		});
 	});
 });

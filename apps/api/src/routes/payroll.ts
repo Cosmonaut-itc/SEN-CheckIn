@@ -2453,6 +2453,14 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				return buildErrorResponse('Fiscal voucher not found', 404);
 			}
 
+			if (body.forceRegenerate && isStampedFiscalVoucher(voucher)) {
+				set.status = 409;
+				return buildErrorResponse(
+					'Stamped fiscal vouchers cannot regenerate XML artifacts',
+					409,
+				);
+			}
+
 			const issuedAt = body.issuedAt ? new Date(body.issuedAt) : new Date();
 			const sourceVoucher = toArtifactSourceVoucher(voucher);
 			const payload = buildPayrollCfdiXmlPersistencePayload({
@@ -2476,6 +2484,7 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				existingArtifacts.find(
 					(artifact) => artifact.fiscalSnapshotHash === snapshotHash,
 				) ?? null;
+			const existingLatest = pickNewestPayrollCfdiArtifact(existingArtifacts);
 
 			if (isStampedFiscalVoucher(voucher)) {
 				if (existingSameHash) {
@@ -2513,8 +2522,11 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				};
 			}
 
-			const artifactId = existingSameHash?.id ?? crypto.randomUUID();
-			if (existingSameHash) {
+			const existingArtifactToReplace = body.forceRegenerate
+				? existingLatest
+				: existingSameHash;
+			const artifactId = existingArtifactToReplace?.id ?? crypto.randomUUID();
+			if (existingArtifactToReplace) {
 				await db
 					.update(payrollCfdiXmlArtifact)
 					.set({

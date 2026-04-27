@@ -475,6 +475,101 @@ function seedAetP10ProcessScenario(): void {
 	);
 }
 
+/**
+ * Seeds a valid persisted fiscal voucher that can generate a Phase 3 CFDI XML artifact.
+ *
+ * @param args - Scenario identifiers
+ * @returns Seeded run and voucher identifiers
+ */
+function seedValidPayrollCfdiXmlScenario(args: { runId: string; voucherId: string }): {
+	runId: string;
+	voucherId: string;
+} {
+	dbState.sessionRole = 'admin';
+	dbState.payrollRuns = [
+		{
+			id: args.runId,
+			organizationId: dbState.organizationId,
+			status: 'PROCESSED',
+			paymentFrequency: 'WEEKLY',
+			periodStart: new Date('2026-04-06T06:00:00.000Z'),
+			periodEnd: new Date('2026-04-13T05:59:59.999Z'),
+		},
+	];
+	dbState.payrollFiscalVouchers = [
+		{
+			id: args.voucherId,
+			payrollRunId: args.runId,
+			payrollRunEmployeeId: `${args.voucherId}-run-employee`,
+			organizationId: dbState.organizationId,
+			employeeId: `${args.voucherId}-employee`,
+			status: 'READY_TO_STAMP',
+			uuid: null,
+			stampedAt: null,
+			voucher: {
+				issuer: {
+					rfc: 'AAA010101AAA',
+					name: 'ACME SA DE CV',
+					fiscalRegime: '601',
+					expeditionPostalCode: '64000',
+					employerRegistration: 'A1234567890',
+				},
+				receiver: {
+					name: 'Ada Lovelace',
+					rfc: 'LOAA800101ABC',
+					curp: 'LOAA800101MDFABC09',
+					nss: '12345678901',
+					fiscalRegime: '605',
+					fiscalPostalCode: '64000',
+					employmentStartDateKey: '2024-01-01',
+					contractType: '01',
+					unionized: 'No',
+					workdayType: '01',
+					regimeType: '02',
+					employeeNumber: 'EMP-001',
+					department: 'Operaciones',
+					position: 'Tecnica',
+					positionRisk: '1',
+					baseContributionSalary: 500,
+					integratedDailySalary: 550,
+					federalEntity: 'NLE',
+				},
+				paymentFrequency: '02',
+				periodStartDateKey: '2026-04-06',
+				periodEndDateKey: '2026-04-12',
+				paymentDateKey: '2026-04-12',
+				daysPaid: 7,
+				perceptions: [
+					{
+						internalType: 'SALARY',
+						satTypeCode: '001',
+						internalCode: '001',
+						description: 'Sueldo',
+						taxedAmount: 1000,
+						exemptAmount: 0,
+					},
+				],
+				deductions: [
+					{
+						internalType: 'ISR',
+						satTypeCode: '002',
+						internalCode: '002',
+						description: 'ISR',
+						amount: 100,
+					},
+				],
+				otherPayments: [],
+			},
+			validationErrors: [],
+			validationWarnings: [],
+			createdAt: new Date(),
+			updatedAt: new Date(),
+		},
+	];
+
+	return args;
+}
+
 type PersistedPayrollDeductionBreakdown = {
 	appliedAmount: number;
 	satDeductionCode: string | null;
@@ -3294,6 +3389,77 @@ describe('payroll routes', () => {
 			'voucher-xml-valid-XML_WITHOUT_SEAL.xml',
 		);
 		expect(await downloadResponse.text()).toContain('<cfdi:Comprobante');
+	});
+
+	it('force-regenerates XML by replacing the existing unstamped voucher artifact even when the snapshot hash changes', async () => {
+		const { runId, voucherId } = seedValidPayrollCfdiXmlScenario({
+			runId: 'processed-run-xml-force',
+			voucherId: 'voucher-xml-force',
+		});
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const firstResponse = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/${voucherId}/xml`, {
+				issuedAt: '2026-04-12T12:00:00.000Z',
+			}),
+		);
+		const firstJson = (await firstResponse.json()) as {
+			data?: { artifactId: string | null; xmlHash: string | null };
+		};
+		const voucher = dbState.payrollFiscalVouchers[0]?.voucher as Record<string, unknown>;
+		const receiver = voucher.receiver as Record<string, unknown>;
+		receiver.department = 'Finanzas';
+
+		const forceResponse = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/${voucherId}/xml`, {
+				issuedAt: '2026-04-12T12:00:00.000Z',
+				forceRegenerate: true,
+			}),
+		);
+		const forceJson = (await forceResponse.json()) as {
+			data?: { artifactId: string | null; xmlHash: string | null };
+		};
+
+		expect(firstResponse.status).toBe(200);
+		expect(forceResponse.status).toBe(200);
+		expect(forceJson.data?.artifactId).toBe(firstJson.data?.artifactId);
+		expect(forceJson.data?.xmlHash).not.toBe(firstJson.data?.xmlHash);
+		expect(dbState.payrollCfdiXmlArtifacts).toHaveLength(1);
+		expect(dbState.payrollCfdiXmlArtifacts[0]?.xml).toContain('Departamento="Finanzas"');
+	});
+
+	it('blocks forced XML regeneration for stamped vouchers instead of reusing an existing artifact', async () => {
+		const { runId, voucherId } = seedValidPayrollCfdiXmlScenario({
+			runId: 'processed-run-xml-stamped-force',
+			voucherId: 'voucher-xml-stamped-force',
+		});
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const firstResponse = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/${voucherId}/xml`, {
+				issuedAt: '2026-04-12T12:00:00.000Z',
+			}),
+		);
+		const voucher = dbState.payrollFiscalVouchers[0];
+		if (!voucher) {
+			throw new Error('Expected seeded fiscal voucher.');
+		}
+		voucher.status = 'STAMPED';
+		voucher.uuid = 'stamped-uuid-1';
+		voucher.stampedAt = new Date('2026-04-12T13:00:00.000Z');
+
+		const forceResponse = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/${voucherId}/xml`, {
+				issuedAt: '2026-04-12T12:00:00.000Z',
+				forceRegenerate: true,
+			}),
+		);
+		const json = (await forceResponse.json()) as { error?: { message?: string } };
+
+		expect(firstResponse.status).toBe(200);
+		expect(forceResponse.status).toBe(409);
+		expect(json.error?.message).toBe('Stamped fiscal vouchers cannot regenerate XML artifacts');
+		expect(dbState.payrollCfdiXmlArtifacts).toHaveLength(1);
 	});
 
 	it('rejects fiscal voucher preparation for payroll runs that are not processed', async () => {

@@ -171,7 +171,7 @@ export const payrollCfdiXmlArtifactKindSchema = z.enum([
 export const payrollCfdiXmlGenerateSchema = z
 	.object({
 		issuedAt: z.string().datetime().optional(),
-		forceRegenerate: z.boolean().optional(),
+		forceRegenerate: z.boolean().default(false),
 	})
 	.default({});
 

@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { describe, expect, it } from 'bun:test';
 
 import {
@@ -150,6 +152,16 @@ function errorCodes(input: PayrollCfdiBuildInput): string[] {
 	return validatePayrollCfdiXmlInput(input).errors.map((issue) => issue.code);
 }
 
+/**
+ * Returns a SHA-256 hex digest for test assertions.
+ *
+ * @param value - Text value to hash
+ * @returns SHA-256 hex digest
+ */
+function sha256Hex(value: string): string {
+	return createHash('sha256').update(value).digest('hex');
+}
+
 describe('payroll CFDI XML formatting helpers', () => {
 	it('formats valid money with two decimals and blocks negative values', () => {
 		expect(formatMoney(2205.28)).toBe('2205.28');
@@ -159,6 +171,11 @@ describe('payroll CFDI XML formatting helpers', () => {
 
 	it('formats payroll days with three decimals', () => {
 		expect(formatPayrollDays(7)).toBe('7.000');
+	});
+
+	it('blocks negative payroll days including negative zero', () => {
+		expect(() => formatPayrollDays(-1)).toThrow('XML_NEGATIVE_AMOUNT');
+		expect(() => formatPayrollDays(-0)).toThrow('XML_NEGATIVE_AMOUNT');
 	});
 
 	it('formats CFDI dates without a timezone suffix', () => {
@@ -247,6 +264,11 @@ describe('payroll CFDI XML builder totals', () => {
 		expect(result.validation.status).toBe('READY_TO_STAMP');
 		expect(result.xmlHash).toMatch(/^[a-f0-9]{64}$/);
 		expect(attrs(result.xmlWithoutSeal, 'cfdi:Comprobante')).toMatchObject({
+			'xmlns:xsi': 'http://www.w3.org/2001/XMLSchema-instance',
+			'xmlns:cfdi': 'http://www.sat.gob.mx/cfd/4',
+			'xmlns:nomina12': 'http://www.sat.gob.mx/nomina12',
+			'xsi:schemaLocation':
+				'http://www.sat.gob.mx/cfd/4 http://www.sat.gob.mx/sitio_internet/cfd/4/cfdv40.xsd http://www.sat.gob.mx/nomina12 http://www.sat.gob.mx/sitio_internet/cfd/nomina/nomina12.xsd',
 			Version: '4.0',
 			TipoDeComprobante: 'N',
 			MetodoPago: 'PUE',
@@ -285,6 +307,42 @@ describe('payroll CFDI XML builder totals', () => {
 			'<nomina12:OtroPago TipoOtroPago="002" Clave="035" Concepto="Subsidio para el empleo del Decreto que otorga el subsidio para el empleo" Importe="0.00"><nomina12:SubsidioAlEmpleo SubsidioCausado="123.34"/></nomina12:OtroPago>',
 		);
 		expect(result.xmlWithoutSeal).not.toContain('TimbreFiscalDigital');
+		expect(result.xmlHash).toBe(sha256Hex(result.xmlWithoutSeal));
+		expect(result.xmlWithoutSeal).toMatch(
+			/^<cfdi:Comprobante [\s\S]*<cfdi:Emisor [\s\S]*<cfdi:Receptor [\s\S]*<cfdi:Conceptos><cfdi:Concepto [\s\S]*<\/cfdi:Conceptos><cfdi:Complemento><nomina12:Nomina [\s\S]*<nomina12:Emisor [\s\S]*<nomina12:Receptor [\s\S]*<nomina12:Percepciones [\s\S]*<nomina12:OtrosPagos>[\s\S]*<\/nomina12:Nomina><\/cfdi:Complemento><\/cfdi:Comprobante>$/,
+		);
+	});
+
+	it('omits optional bank account when it is absent', () => {
+		const result = buildPayrollCfdiXml(buildWeeklyInput({ receiver: { bankAccount: null } }));
+
+		expect(result.validation.status).toBe('READY_TO_STAMP');
+		expect(attrs(result.xmlWithoutSeal, 'nomina12:Receptor')).not.toHaveProperty(
+			'CuentaBancaria',
+		);
+	});
+
+	it('always emits SubsidioAlEmpleo child for subsidy other-payment lines', () => {
+		const result = buildPayrollCfdiXml(
+			buildWeeklyInput({
+				otherPayments: [
+					{
+						internalType: 'SUBSIDY_APPLIED',
+						internalCode: 'SUBSIDY_APPLIED',
+						satTypeCode: '002',
+						employerCode: '035',
+						conceptLabel: 'Subsidio',
+						amount: 0,
+						subsidyCausedAmount: 0,
+					},
+				],
+			}),
+		);
+
+		expect(result.validation.status).toBe('READY_TO_STAMP');
+		expect(result.xmlWithoutSeal).toContain(
+			'<nomina12:SubsidioAlEmpleo SubsidioCausado="0.00"/>',
+		);
 	});
 });
 
@@ -336,6 +394,40 @@ describe('payroll CFDI XML validation', () => {
 				'XML_SUBSIDY_AMOUNT_MUST_BE_ZERO',
 			],
 			[
+				'missing subsidy caused for subsidy other payment',
+				buildWeeklyInput({
+					otherPayments: [
+						{
+							internalType: 'SUBSIDY_APPLIED',
+							internalCode: 'SUBSIDY_APPLIED',
+							satTypeCode: '002',
+							employerCode: '035',
+							conceptLabel: 'Subsidio',
+							amount: 0,
+							subsidyCausedAmount: null,
+						},
+					],
+				}),
+				'XML_SUBSIDY_AMOUNT_MUST_BE_ZERO',
+			],
+			[
+				'negative subsidy caused for subsidy other payment',
+				buildWeeklyInput({
+					otherPayments: [
+						{
+							internalType: 'SUBSIDY_APPLIED',
+							internalCode: 'SUBSIDY_APPLIED',
+							satTypeCode: '002',
+							employerCode: '035',
+							conceptLabel: 'Subsidio',
+							amount: 0,
+							subsidyCausedAmount: -1,
+						},
+					],
+				}),
+				'XML_NEGATIVE_AMOUNT',
+			],
+			[
 				'unmapped deduction',
 				buildWeeklyInput({
 					deductions: [
@@ -378,10 +470,105 @@ describe('payroll CFDI XML validation', () => {
 				buildWeeklyInput({ payroll: { type: 'E' } }),
 				'XML_UNSUPPORTED_PAYROLL_TYPE',
 			],
+			[
+				'negative payroll days',
+				buildWeeklyInput({ payroll: { daysPaid: -1 } }),
+				'XML_DAYS_PAID_REQUIRED',
+			],
+			[
+				'negative zero payroll days',
+				buildWeeklyInput({ payroll: { daysPaid: -0 } }),
+				'XML_DAYS_PAID_REQUIRED',
+			],
 		];
 
 		for (const [label, input, code] of cases) {
 			expect(errorCodes(input), label).toContain(code);
+			const result = buildPayrollCfdiXml(input);
+
+			expect(result.validation.status, label).toBe('BLOCKED');
+			expect(result.xmlWithoutSeal, label).toBe('');
+		}
+	});
+
+	it('blocks missing required Nomina receptor fields instead of throwing during render', () => {
+		const cases: Array<[string, PayrollCfdiBuildInput, string]> = [
+			[
+				'missing contract type',
+				buildWeeklyInput({ receiver: { contractType: null } }),
+				'XML_CATALOG_CODE_INVALID',
+			],
+			[
+				'missing unionized flag',
+				buildWeeklyInput({ receiver: { unionized: null } }),
+				'XML_CATALOG_CODE_INVALID',
+			],
+			[
+				'missing workday type',
+				buildWeeklyInput({ receiver: { workdayType: null } }),
+				'XML_CATALOG_CODE_INVALID',
+			],
+			[
+				'missing regime type',
+				buildWeeklyInput({ receiver: { regimeType: null } }),
+				'XML_CATALOG_CODE_INVALID',
+			],
+			[
+				'missing employee number',
+				buildWeeklyInput({ receiver: { employeeNumber: null } }),
+				'XML_CATALOG_CODE_INVALID',
+			],
+			[
+				'missing department',
+				buildWeeklyInput({ receiver: { department: null } }),
+				'XML_CATALOG_CODE_INVALID',
+			],
+			[
+				'missing position',
+				buildWeeklyInput({ receiver: { position: null } }),
+				'XML_CATALOG_CODE_INVALID',
+			],
+			[
+				'missing position risk',
+				buildWeeklyInput({ receiver: { positionRisk: null } }),
+				'XML_CATALOG_CODE_INVALID',
+			],
+			[
+				'missing payment frequency',
+				buildWeeklyInput({ receiver: { paymentFrequency: null } }),
+				'XML_CATALOG_CODE_INVALID',
+			],
+			[
+				'missing base contribution salary',
+				buildWeeklyInput({ receiver: { baseContributionSalary: null } }),
+				'XML_NEGATIVE_AMOUNT',
+			],
+			[
+				'missing integrated daily salary',
+				buildWeeklyInput({ receiver: { integratedDailySalary: null } }),
+				'XML_NEGATIVE_AMOUNT',
+			],
+			[
+				'missing federal entity',
+				buildWeeklyInput({ receiver: { federalEntity: null } }),
+				'XML_CATALOG_CODE_INVALID',
+			],
+			[
+				'negative base contribution salary',
+				buildWeeklyInput({ receiver: { baseContributionSalary: -1 } }),
+				'XML_NEGATIVE_AMOUNT',
+			],
+			[
+				'negative integrated daily salary',
+				buildWeeklyInput({ receiver: { integratedDailySalary: -1 } }),
+				'XML_NEGATIVE_AMOUNT',
+			],
+		];
+
+		for (const [label, input, code] of cases) {
+			expect(errorCodes(input), label).toContain(code);
+			expect(() => buildPayrollCfdiXml(input), label).not.toThrow();
+
 			const result = buildPayrollCfdiXml(input);
 
 			expect(result.validation.status, label).toBe('BLOCKED');

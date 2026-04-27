@@ -293,6 +293,7 @@ export function validatePayrollCfdiXmlInput(
 		'XML_EMPLOYMENT_START_DATE_REQUIRED',
 		'receiver.employmentStartDateKey',
 	);
+	validatePayrollReceiver(input.receiver, errors);
 	pushRequired(
 		errors,
 		input.payroll.paymentDateKey,
@@ -304,7 +305,12 @@ export function validatePayrollCfdiXmlInput(
 		errors.push(createIssue('XML_PERIOD_DATES_REQUIRED', 'payroll.periodDates'));
 	}
 
-	if (input.payroll.daysPaid === null || !Number.isFinite(input.payroll.daysPaid)) {
+	if (
+		input.payroll.daysPaid === null ||
+		!Number.isFinite(input.payroll.daysPaid) ||
+		Object.is(input.payroll.daysPaid, -0) ||
+		input.payroll.daysPaid < 0
+	) {
 		errors.push(createIssue('XML_DAYS_PAID_REQUIRED', 'payroll.daysPaid'));
 	}
 
@@ -553,9 +559,11 @@ function renderOtherPayments(otherPayments: PayrollCfdiOtherPaymentLine[]): stri
 	const lines = otherPayments
 		.map((line) => {
 			const child =
-				line.satTypeCode === '002' && (line.subsidyCausedAmount ?? 0) > 0
+				line.satTypeCode === '002'
 					? `<nomina12:SubsidioAlEmpleo ${attrsToXml({
-							SubsidioCausado: formatMoney(line.subsidyCausedAmount ?? 0),
+							SubsidioCausado: formatMoney(
+								requireNumber(line.subsidyCausedAmount ?? null),
+							),
 						})}/>`
 					: '';
 
@@ -569,6 +577,38 @@ function renderOtherPayments(otherPayments: PayrollCfdiOtherPaymentLine[]): stri
 		.join('');
 
 	return `<nomina12:OtrosPagos>${lines}</nomina12:OtrosPagos>`;
+}
+
+/**
+ * Validates required Nomina Receptor fields used during XML rendering.
+ *
+ * @param receiver - Nomina Receptor snapshot
+ * @param errors - Mutable validation issue list
+ */
+function validatePayrollReceiver(
+	receiver: PayrollCfdiReceiver,
+	errors: PayrollCfdiValidationIssue[],
+): void {
+	validateRequiredCatalogText(receiver.contractType, 'receiver.contractType', errors);
+	validateRequiredCatalogText(receiver.unionized, 'receiver.unionized', errors);
+	validateRequiredCatalogText(receiver.workdayType, 'receiver.workdayType', errors);
+	validateRequiredCatalogText(receiver.regimeType, 'receiver.regimeType', errors);
+	validateRequiredCatalogText(receiver.employeeNumber, 'receiver.employeeNumber', errors);
+	validateRequiredCatalogText(receiver.department, 'receiver.department', errors);
+	validateRequiredCatalogText(receiver.position, 'receiver.position', errors);
+	validateRequiredCatalogText(receiver.positionRisk, 'receiver.positionRisk', errors);
+	validateRequiredCatalogText(receiver.paymentFrequency, 'receiver.paymentFrequency', errors);
+	validateNullableAmount(
+		receiver.baseContributionSalary,
+		'receiver.baseContributionSalary',
+		errors,
+	);
+	validateNullableAmount(
+		receiver.integratedDailySalary,
+		'receiver.integratedDailySalary',
+		errors,
+	);
+	validateRequiredCatalogText(receiver.federalEntity, 'receiver.federalEntity', errors);
 }
 
 /**
@@ -684,8 +724,18 @@ function validateOtherPayments(
 		validateRequiredText(line.conceptLabel, `${field}.conceptLabel`, errors);
 		validateAmount(line.amount, `${field}.amount`, errors);
 
-		if ((line.subsidyCausedAmount ?? 0) > 0 && line.amount !== 0) {
-			errors.push(createIssue('XML_SUBSIDY_AMOUNT_MUST_BE_ZERO', `${field}.amount`));
+		if (line.satTypeCode === '002') {
+			if (line.amount !== 0) {
+				errors.push(createIssue('XML_SUBSIDY_AMOUNT_MUST_BE_ZERO', `${field}.amount`));
+			}
+
+			if (line.subsidyCausedAmount === null || line.subsidyCausedAmount === undefined) {
+				errors.push(
+					createIssue('XML_SUBSIDY_AMOUNT_MUST_BE_ZERO', `${field}.subsidyCausedAmount`),
+				);
+			} else {
+				validateAmount(line.subsidyCausedAmount, `${field}.subsidyCausedAmount`, errors);
+			}
 		}
 	}
 }
@@ -727,6 +777,23 @@ function validateRequiredText(
 }
 
 /**
+ * Validates required receiver catalog/text fields with the generic catalog issue.
+ *
+ * @param value - Candidate text value
+ * @param field - Field path for the issue
+ * @param errors - Mutable validation issue list
+ */
+function validateRequiredCatalogText(
+	value: string | null,
+	field: string,
+	errors: PayrollCfdiValidationIssue[],
+): void {
+	if (!hasText(value)) {
+		errors.push(createIssue('XML_CATALOG_CODE_INVALID', field));
+	}
+}
+
+/**
  * Validates a SAT catalog-like code field.
  *
  * @param value - Candidate code value
@@ -757,6 +824,23 @@ function validateCatalogText(
  */
 function validateAmount(value: number, field: string, errors: PayrollCfdiValidationIssue[]): void {
 	if (!Number.isFinite(value) || Object.is(value, -0) || value < 0) {
+		errors.push(createIssue('XML_NEGATIVE_AMOUNT', field));
+	}
+}
+
+/**
+ * Validates that an amount exists, is finite, and is nonnegative.
+ *
+ * @param value - Nullable amount to validate
+ * @param field - Field path for the issue
+ * @param errors - Mutable validation issue list
+ */
+function validateNullableAmount(
+	value: number | null,
+	field: string,
+	errors: PayrollCfdiValidationIssue[],
+): void {
+	if (value === null || !Number.isFinite(value) || Object.is(value, -0) || value < 0) {
 		errors.push(createIssue('XML_NEGATIVE_AMOUNT', field));
 	}
 }

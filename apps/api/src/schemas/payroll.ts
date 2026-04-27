@@ -157,6 +157,34 @@ export const payrollFiscalVoucherPrepareSchema = z.object({
 }).default({});
 
 /**
+ * Supported persisted CFDI XML artifact kinds.
+ */
+export const payrollCfdiXmlArtifactKindSchema = z.enum([
+	'XML_WITHOUT_SEAL',
+	'SEALED_XML',
+	'STAMPED_XML',
+]);
+
+/**
+ * Schema for generating payroll CFDI XML artifacts.
+ */
+export const payrollCfdiXmlGenerateSchema = z
+	.object({
+		issuedAt: z.string().datetime().optional(),
+		forceRegenerate: z.boolean().optional(),
+	})
+	.default({});
+
+/**
+ * Schema for querying payroll CFDI XML artifacts.
+ */
+export const payrollCfdiXmlQuerySchema = z
+	.object({
+		kind: payrollCfdiXmlArtifactKindSchema.default('XML_WITHOUT_SEAL'),
+	})
+	.default({});
+
+/**
  * Warning emitted during payroll calculation.
  */
 export const payrollWarningSchema = z.object({

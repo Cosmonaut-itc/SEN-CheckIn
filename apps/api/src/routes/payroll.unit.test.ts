@@ -164,6 +164,7 @@ interface FakeDbState {
 	payrollRuns: Record<string, unknown>[];
 	payrollRunEmployees: Record<string, unknown>[];
 	payrollFiscalVouchers: Record<string, unknown>[];
+	payrollCfdiXmlArtifacts: Record<string, unknown>[];
 	payrollFiscalVoucherUpdateCount: number;
 	transactionCalled: boolean;
 	deductionUpdateConditions: DrizzleCondition[];
@@ -686,6 +687,24 @@ function readFakeRowColumn(row: Record<string, unknown>, columnName: string): un
 	if (columnName === 'stamped_at') {
 		return row.stampedAt;
 	}
+	if (columnName === 'payroll_run_id') {
+		return row.payrollRunId;
+	}
+	if (columnName === 'payroll_fiscal_voucher_id') {
+		return row.payrollFiscalVoucherId;
+	}
+	if (columnName === 'artifact_kind') {
+		return row.artifactKind;
+	}
+	if (columnName === 'fiscal_snapshot_hash') {
+		return row.fiscalSnapshotHash;
+	}
+	if (columnName === 'organization_id') {
+		return row.organizationId;
+	}
+	if (columnName === 'employee_id') {
+		return row.employeeId;
+	}
 	return row[columnName];
 }
 
@@ -1004,8 +1023,22 @@ function applyMockedPaymentDateBulkUpdate(
  * @returns Fake DB instance
  */
 function createFakeDb(state: FakeDbState): {
+	insert: (table: unknown) => {
+		values: (values: Record<string, unknown> | Record<string, unknown>[]) => Promise<void> & {
+			onConflictDoNothing: () => Promise<void>;
+		};
+	};
 	select: (selection?: unknown) => unknown;
 	transaction: <T>(fn: (tx: unknown) => Promise<T>) => Promise<T>;
+	update: (table: unknown) => {
+		set: (values: Record<string, unknown>) => {
+			where: (condition: DrizzleCondition) => {
+				returning: (
+					selection?: Record<string, unknown>,
+				) => Promise<Record<string, unknown>[]>;
+			} & Promise<void>;
+		};
+	};
 } {
 	/**
 	 * Minimal Drizzle-like query builder that is awaitable (`thenable`).
@@ -1314,6 +1347,14 @@ function createFakeDb(state: FakeDbState): {
 					: state.payrollFiscalVouchers.filter((row) => row.payrollRunId === runId);
 			}
 
+			if (tableName === 'payroll_cfdi_xml_artifact') {
+				return this.whereCondition
+					? state.payrollCfdiXmlArtifacts.filter((row) =>
+							matchesFakeRowCondition(row, this.whereCondition as DrizzleCondition),
+						)
+					: state.payrollCfdiXmlArtifacts;
+			}
+
 			return [];
 		}
 
@@ -1441,6 +1482,20 @@ function createFakeDb(state: FakeDbState): {
 								updatedAt: new Date(),
 								...row,
 							})),
+					);
+				}
+				if (tableName === 'payroll_cfdi_xml_artifact') {
+					state.payrollCfdiXmlArtifacts.push(
+						...rows.map((row, index) => ({
+							id:
+								typeof row.id === 'string'
+									? row.id
+									: `cfdi-xml-artifact-${
+											state.payrollCfdiXmlArtifacts.length + index + 1
+										}`,
+							createdAt: new Date(),
+							...row,
+						})),
 					);
 				}
 				return Object.assign(Promise.resolve(), {
@@ -1578,6 +1633,19 @@ function createFakeDb(state: FakeDbState): {
 						return updatedRows;
 					}
 
+					if (tableName === 'payroll_cfdi_xml_artifact') {
+						const updatedRows: Record<string, unknown>[] = [];
+						for (const artifact of state.payrollCfdiXmlArtifacts) {
+							if (!matchesFakeRowCondition(artifact, condition)) {
+								continue;
+							}
+							Object.assign(artifact, values);
+							updatedRows.push({ id: artifact.id });
+						}
+
+						return updatedRows;
+					}
+
 					return [];
 				};
 
@@ -1668,6 +1736,7 @@ function createFakeDb(state: FakeDbState): {
 			payrollRuns: state.payrollRuns,
 			payrollRunEmployees: state.payrollRunEmployees,
 			payrollFiscalVouchers: state.payrollFiscalVouchers,
+			payrollCfdiXmlArtifacts: state.payrollCfdiXmlArtifacts,
 		});
 
 		try {
@@ -1678,13 +1747,32 @@ function createFakeDb(state: FakeDbState): {
 			state.payrollRuns = snapshot.payrollRuns;
 			state.payrollRunEmployees = snapshot.payrollRunEmployees;
 			state.payrollFiscalVouchers = snapshot.payrollFiscalVouchers;
+			state.payrollCfdiXmlArtifacts = snapshot.payrollCfdiXmlArtifacts;
 			throw error;
 		}
 	};
 
+	/**
+	 * Begins a top-level insert operation.
+	 *
+	 * @param table - Drizzle table instance
+	 * @returns Insert builder
+	 */
+	const insert = (table: unknown) => createTransaction().insert(table);
+
+	/**
+	 * Begins a top-level update operation.
+	 *
+	 * @param table - Drizzle table instance
+	 * @returns Update builder
+	 */
+	const update = (table: unknown) => createTransaction().update(table);
+
 	return {
+		insert,
 		select,
 		transaction,
+		update,
 	};
 }
 
@@ -1701,6 +1789,7 @@ const dbState: FakeDbState = {
 	payrollRuns: [],
 	payrollRunEmployees: [],
 	payrollFiscalVouchers: [],
+	payrollCfdiXmlArtifacts: [],
 	payrollFiscalVoucherUpdateCount: 0,
 	transactionCalled: false,
 	deductionUpdateConditions: [],
@@ -1801,6 +1890,7 @@ describe('payroll routes', () => {
 		dbState.payrollRuns = [];
 		dbState.payrollRunEmployees = [];
 		dbState.payrollFiscalVouchers = [];
+		dbState.payrollCfdiXmlArtifacts = [];
 		dbState.payrollFiscalVoucherUpdateCount = 0;
 		dbState.transactionCalled = false;
 		dbState.deductionUpdateConditions = [];
@@ -2978,6 +3068,232 @@ describe('payroll routes', () => {
 		expect(json.data?.vouchers?.[0]?.validationErrors.map((error) => error.code)).toContain(
 			'EMPLOYEE_WITHHOLDINGS_INVALID',
 		);
+	});
+
+	it('returns a blocked XML artifact summary without XML when Phase 3 voucher fields are missing', async () => {
+		dbState.sessionRole = 'admin';
+		dbState.payrollRuns = [
+			{
+				id: 'processed-run-xml-1',
+				organizationId: dbState.organizationId,
+				status: 'PROCESSED',
+				paymentFrequency: 'WEEKLY',
+				periodStart: new Date('2026-04-06T06:00:00.000Z'),
+				periodEnd: new Date('2026-04-13T05:59:59.999Z'),
+			},
+		];
+		dbState.payrollFiscalVouchers = [
+			{
+				id: 'voucher-xml-blocked',
+				payrollRunId: 'processed-run-xml-1',
+				payrollRunEmployeeId: 'run-employee-xml-1',
+				organizationId: dbState.organizationId,
+				employeeId: 'emp-xml-1',
+				status: 'READY_TO_STAMP',
+				uuid: null,
+				stampedAt: null,
+				voucher: {
+					issuer: {
+						rfc: 'AAA010101AAA',
+						name: 'ACME SA DE CV',
+						fiscalRegime: '601',
+						expeditionPostalCode: '64000',
+					},
+					receiver: {
+						name: 'Ada Lovelace',
+						rfc: 'LOAA800101ABC',
+						curp: 'LOAA800101MDFABC09',
+						nss: '12345678901',
+						fiscalRegime: '605',
+						fiscalPostalCode: '64000',
+						contractType: '01',
+						workdayType: '01',
+					},
+					paymentFrequency: 'WEEKLY',
+					periodStartDateKey: '2026-04-06',
+					periodEndDateKey: '2026-04-12',
+					paymentDateKey: '2026-04-12',
+					perceptions: [
+						{
+							internalType: 'SALARY',
+							satTypeCode: '001',
+							internalCode: 'SALARY',
+							description: 'Sueldo',
+							taxedAmount: 1000,
+							exemptAmount: 0,
+						},
+					],
+					deductions: [],
+					otherPayments: [],
+					realPayrollComplementPay: null,
+				},
+				validationErrors: [],
+				validationWarnings: [],
+				createdAt: new Date(),
+				updatedAt: new Date(),
+			},
+		];
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const response = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(
+				'/payroll/runs/processed-run-xml-1/fiscal-vouchers/voucher-xml-blocked/xml',
+				{ issuedAt: '2026-04-12T12:00:00.000Z' },
+			),
+		);
+		const json = (await response.json()) as {
+			data?: {
+				artifactId: string | null;
+				status: string;
+				errors: Array<{ code: string }>;
+				xml?: string;
+			};
+		};
+
+		expect(response.status).toBe(422);
+		expect(json.data?.artifactId).toBeNull();
+		expect(json.data?.status).toBe('BLOCKED');
+		expect(json.data).not.toHaveProperty('xml');
+		expect(json.data?.errors.map((error) => error.code)).toContain(
+			'XML_EMPLOYMENT_START_DATE_REQUIRED',
+		);
+		expect(dbState.payrollCfdiXmlArtifacts).toHaveLength(0);
+	});
+
+	it('generates XML artifacts idempotently and downloads the newest XML with attachment headers', async () => {
+		dbState.sessionRole = 'admin';
+		dbState.payrollRuns = [
+			{
+				id: 'processed-run-xml-2',
+				organizationId: dbState.organizationId,
+				status: 'PROCESSED',
+				paymentFrequency: 'WEEKLY',
+				periodStart: new Date('2026-04-06T06:00:00.000Z'),
+				periodEnd: new Date('2026-04-13T05:59:59.999Z'),
+			},
+		];
+		dbState.payrollFiscalVouchers = [
+			{
+				id: 'voucher-xml-valid',
+				payrollRunId: 'processed-run-xml-2',
+				payrollRunEmployeeId: 'run-employee-xml-2',
+				organizationId: dbState.organizationId,
+				employeeId: 'emp-xml-2',
+				status: 'READY_TO_STAMP',
+				uuid: null,
+				stampedAt: null,
+				voucher: {
+					issuer: {
+						rfc: 'AAA010101AAA',
+						name: 'ACME SA DE CV',
+						fiscalRegime: '601',
+						expeditionPostalCode: '64000',
+						employerRegistration: 'A1234567890',
+					},
+					receiver: {
+						name: 'Ada Lovelace',
+						rfc: 'LOAA800101ABC',
+						curp: 'LOAA800101MDFABC09',
+						nss: '12345678901',
+						fiscalRegime: '605',
+						fiscalPostalCode: '64000',
+						employmentStartDateKey: '2024-01-01',
+						contractType: '01',
+						unionized: 'No',
+						workdayType: '01',
+						regimeType: '02',
+						employeeNumber: 'EMP-001',
+						department: 'Operaciones',
+						position: 'Tecnica',
+						positionRisk: '1',
+						baseContributionSalary: 500,
+						integratedDailySalary: 550,
+						federalEntity: 'NLE',
+					},
+					paymentFrequency: '02',
+					periodStartDateKey: '2026-04-06',
+					periodEndDateKey: '2026-04-12',
+					paymentDateKey: '2026-04-12',
+					daysPaid: 7,
+					perceptions: [
+						{
+							internalType: 'SALARY',
+							satTypeCode: '001',
+							internalCode: '001',
+							description: 'Sueldo',
+							taxedAmount: 1000,
+							exemptAmount: 0,
+						},
+					],
+					deductions: [
+						{
+							internalType: 'ISR',
+							satTypeCode: '002',
+							internalCode: '002',
+							description: 'ISR',
+							amount: 100,
+						},
+					],
+					otherPayments: [],
+				},
+				validationErrors: [],
+				validationWarnings: [],
+				createdAt: new Date(),
+				updatedAt: new Date(),
+			},
+		];
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const firstResponse = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(
+				'/payroll/runs/processed-run-xml-2/fiscal-vouchers/voucher-xml-valid/xml',
+				{ issuedAt: '2026-04-12T12:00:00.000Z' },
+			),
+		);
+		const firstJson = (await firstResponse.json()) as {
+			data?: {
+				artifactId: string | null;
+				xmlHash: string | null;
+				status: string;
+				xml?: string;
+			};
+		};
+
+		expect(firstResponse.status).toBe(200);
+		expect(typeof firstJson.data?.artifactId).toBe('string');
+		expect(firstJson.data?.status).toBe('VALID');
+		expect(firstJson.data).not.toHaveProperty('xml');
+		expect(dbState.payrollCfdiXmlArtifacts).toHaveLength(1);
+
+		const secondResponse = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(
+				'/payroll/runs/processed-run-xml-2/fiscal-vouchers/voucher-xml-valid/xml',
+				{ issuedAt: '2026-04-12T12:00:00.000Z' },
+			),
+		);
+		const secondJson = (await secondResponse.json()) as {
+			data?: { artifactId: string | null; xmlHash: string | null; xml?: string };
+		};
+
+		expect(secondResponse.status).toBe(200);
+		expect(secondJson.data?.artifactId).toBe(firstJson.data?.artifactId);
+		expect(secondJson.data?.xmlHash).toBe(firstJson.data?.xmlHash);
+		expect(secondJson.data).not.toHaveProperty('xml');
+		expect(dbState.payrollCfdiXmlArtifacts).toHaveLength(1);
+
+		const downloadResponse = await payrollRoutes.handle(
+			createApiKeyJsonGetRequest(
+				'/payroll/runs/processed-run-xml-2/fiscal-vouchers/voucher-xml-valid/xml',
+			),
+		);
+
+		expect(downloadResponse.status).toBe(200);
+		expect(downloadResponse.headers.get('content-type')).toBe('application/xml; charset=utf-8');
+		expect(downloadResponse.headers.get('cache-control')).toBe('no-store');
+		expect(downloadResponse.headers.get('content-disposition')).toContain(
+			'voucher-xml-valid-XML_WITHOUT_SEAL.xml',
+		);
+		expect(await downloadResponse.text()).toContain('<cfdi:Comprobante');
 	});
 
 	it('rejects fiscal voucher preparation for payroll runs that are not processed', async () => {

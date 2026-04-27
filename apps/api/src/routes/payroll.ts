@@ -15,6 +15,7 @@ import {
 	member,
 	organization,
 	overtimeAuthorization,
+	payrollCfdiXmlArtifact,
 	payrollFiscalVoucher,
 	payrollRun,
 	payrollRunEmployee,
@@ -27,6 +28,8 @@ import { resolveOrganizationId } from '../utils/organization.js';
 import { roundCurrency } from '../utils/money.js';
 import {
 	payrollFiscalVoucherPrepareSchema,
+	payrollCfdiXmlGenerateSchema,
+	payrollCfdiXmlQuerySchema,
 	payrollCalculateSchema,
 	payrollProcessSchema,
 	payrollRunQuerySchema,
@@ -57,6 +60,14 @@ import {
 	type PayrollFiscalVoucherValidationIssue,
 	type PayrollFiscalVoucherValidationStatus,
 } from '../services/payroll-fiscal-vouchers.js';
+import {
+	buildPayrollCfdiArtifactSummary,
+	buildPayrollCfdiXmlDownloadResponse,
+	buildPayrollCfdiXmlPersistencePayload,
+	mapFiscalVoucherToPayrollCfdiBuildInput,
+	type PayrollCfdiXmlArtifactRow,
+	type PayrollFiscalVoucherArtifactSourceRow,
+} from '../services/payroll-cfdi-artifacts.js';
 import type {
 	PayrollEmployeeWithholdings,
 	PayrollInformationalLines,
@@ -839,6 +850,52 @@ function buildFiscalVoucherListPayload(rows: PayrollFiscalVoucherDbRow[]): {
 		statusSummary: summarizeFiscalVoucherStatuses(rows),
 		vouchers: rows,
 	};
+}
+
+/**
+ * Checks whether a fiscal voucher has already been stamped.
+ *
+ * @param voucher - Persisted fiscal voucher row
+ * @returns True when PAC/SAT stamping data is present
+ */
+function isStampedFiscalVoucher(voucher: PayrollFiscalVoucherDbRow): boolean {
+	return voucher.status === 'STAMPED' || Boolean(voucher.stampedAt) || Boolean(voucher.uuid);
+}
+
+/**
+ * Converts a persisted fiscal voucher route row to the artifact service source shape.
+ *
+ * @param voucher - Persisted fiscal voucher row
+ * @returns Artifact service source row
+ */
+function toArtifactSourceVoucher(
+	voucher: PayrollFiscalVoucherDbRow,
+): PayrollFiscalVoucherArtifactSourceRow {
+	return {
+		id: voucher.id,
+		payrollRunId: voucher.payrollRunId,
+		organizationId: voucher.organizationId,
+		employeeId: voucher.employeeId,
+		status: voucher.status,
+		uuid: voucher.uuid,
+		stampedAt: voucher.stampedAt,
+		voucher: voucher.voucher,
+	};
+}
+
+/**
+ * Picks the newest artifact from a list of persisted XML artifacts.
+ *
+ * @param rows - Candidate artifact rows
+ * @returns Newest artifact row or null
+ */
+function pickNewestPayrollCfdiArtifact(
+	rows: PayrollCfdiXmlArtifactRow[],
+): PayrollCfdiXmlArtifactRow | null {
+	return (
+		rows.sort((left, right) => right.generatedAt.getTime() - left.generatedAt.getTime())[0] ??
+		null
+	);
 }
 
 /**
@@ -2327,6 +2384,251 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 		},
 		{
 			body: payrollFiscalVoucherPrepareSchema,
+		},
+	)
+	/**
+	 * Generate and persist an unstamped CFDI payroll XML artifact for a fiscal voucher.
+	 */
+	.post(
+		'/runs/:id/fiscal-vouchers/:voucherId/xml',
+		async ({
+			params,
+			body,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+			set,
+		}) => {
+			const { id: runId, voucherId } = params;
+			const runRows = await db
+				.select()
+				.from(payrollRun)
+				.where(eq(payrollRun.id, runId))
+				.limit(1);
+			const run = runRows[0];
+
+			if (!run) {
+				set.status = 404;
+				return buildErrorResponse('Payroll run not found', 404);
+			}
+
+			const organizationId = resolveOrganizationId({
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: run.organizationId,
+			});
+
+			if (!organizationId || organizationId !== run.organizationId) {
+				set.status = 404;
+				return buildErrorResponse('Payroll run not found', 404);
+			}
+
+			const canAccessFiscalVouchers = await canViewDualPayrollCompensation({
+				authType,
+				organizationId: run.organizationId,
+				session: session ?? null,
+			});
+			if (!canAccessFiscalVouchers) {
+				set.status = 403;
+				return buildErrorResponse('You do not have access to payroll fiscal vouchers', 403);
+			}
+
+			const voucherRows = (await db
+				.select()
+				.from(payrollFiscalVoucher)
+				.where(
+					eq(payrollFiscalVoucher.payrollRunId, runId),
+				)) as PayrollFiscalVoucherDbRow[];
+			const voucher = voucherRows.find(
+				(row) => row.id === voucherId && row.organizationId === run.organizationId,
+			);
+
+			if (!voucher) {
+				set.status = 404;
+				return buildErrorResponse('Fiscal voucher not found', 404);
+			}
+
+			const issuedAt = body.issuedAt ? new Date(body.issuedAt) : new Date();
+			const sourceVoucher = toArtifactSourceVoucher(voucher);
+			const payload = buildPayrollCfdiXmlPersistencePayload({
+				voucherRow: sourceVoucher,
+				issuedAt,
+			});
+			const snapshotHash = mapFiscalVoucherToPayrollCfdiBuildInput({
+				voucherRow: sourceVoucher,
+				issuedAt,
+			}).fiscalSnapshotHash;
+			const existingArtifacts = (await db
+				.select()
+				.from(payrollCfdiXmlArtifact)
+				.where(
+					and(
+						eq(payrollCfdiXmlArtifact.payrollFiscalVoucherId, voucherId),
+						eq(payrollCfdiXmlArtifact.artifactKind, 'XML_WITHOUT_SEAL'),
+					),
+				)) as PayrollCfdiXmlArtifactRow[];
+			const existingSameHash =
+				existingArtifacts.find(
+					(artifact) => artifact.fiscalSnapshotHash === snapshotHash,
+				) ?? null;
+
+			if (isStampedFiscalVoucher(voucher)) {
+				if (existingSameHash) {
+					return {
+						data: buildPayrollCfdiArtifactSummary({
+							voucherId,
+							artifact: existingSameHash,
+							status:
+								existingSameHash.validationErrors.length > 0 ? 'BLOCKED' : 'VALID',
+							warnings: [],
+						}),
+					};
+				}
+
+				set.status = 409;
+				return buildErrorResponse(
+					'Stamped fiscal vouchers cannot regenerate XML artifacts',
+					409,
+				);
+			}
+
+			if (payload.status === 'BLOCKED' || !payload.artifact) {
+				set.status = 422;
+				return { data: payload.summary };
+			}
+
+			if (existingSameHash && !body.forceRegenerate) {
+				return {
+					data: buildPayrollCfdiArtifactSummary({
+						voucherId,
+						artifact: existingSameHash,
+						status: 'VALID',
+						warnings: [],
+					}),
+				};
+			}
+
+			const artifactId = existingSameHash?.id ?? crypto.randomUUID();
+			if (existingSameHash) {
+				await db
+					.update(payrollCfdiXmlArtifact)
+					.set({
+						xmlHash: payload.artifact.xmlHash,
+						xml: payload.artifact.xml,
+						fiscalArtifactManifest: payload.artifact.fiscalArtifactManifest,
+						validationErrors: payload.artifact.validationErrors,
+						generatedAt: payload.artifact.generatedAt,
+					})
+					.where(eq(payrollCfdiXmlArtifact.id, artifactId));
+			} else {
+				await db.insert(payrollCfdiXmlArtifact).values({
+					id: artifactId,
+					...payload.artifact,
+				});
+			}
+
+			return {
+				data: {
+					...payload.summary,
+					artifactId,
+				},
+			};
+		},
+		{
+			body: payrollCfdiXmlGenerateSchema,
+		},
+	)
+	/**
+	 * Download a generated CFDI payroll XML artifact for a fiscal voucher.
+	 */
+	.get(
+		'/runs/:id/fiscal-vouchers/:voucherId/xml',
+		async ({
+			params,
+			query,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+			set,
+		}) => {
+			const { id: runId, voucherId } = params;
+			const runRows = await db
+				.select()
+				.from(payrollRun)
+				.where(eq(payrollRun.id, runId))
+				.limit(1);
+			const run = runRows[0];
+
+			if (!run) {
+				set.status = 404;
+				return buildErrorResponse('Payroll run not found', 404);
+			}
+
+			const organizationId = resolveOrganizationId({
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: run.organizationId,
+			});
+
+			if (!organizationId || organizationId !== run.organizationId) {
+				set.status = 404;
+				return buildErrorResponse('Payroll run not found', 404);
+			}
+
+			const canAccessFiscalVouchers = await canViewDualPayrollCompensation({
+				authType,
+				organizationId: run.organizationId,
+				session: session ?? null,
+			});
+			if (!canAccessFiscalVouchers) {
+				set.status = 403;
+				return buildErrorResponse('You do not have access to payroll fiscal vouchers', 403);
+			}
+
+			const voucherRows = (await db
+				.select()
+				.from(payrollFiscalVoucher)
+				.where(
+					eq(payrollFiscalVoucher.payrollRunId, runId),
+				)) as PayrollFiscalVoucherDbRow[];
+			const voucher = voucherRows.find(
+				(row) => row.id === voucherId && row.organizationId === run.organizationId,
+			);
+
+			if (!voucher) {
+				set.status = 404;
+				return buildErrorResponse('Fiscal voucher not found', 404);
+			}
+
+			const artifactRows = (await db
+				.select()
+				.from(payrollCfdiXmlArtifact)
+				.where(
+					and(
+						eq(payrollCfdiXmlArtifact.payrollFiscalVoucherId, voucherId),
+						eq(payrollCfdiXmlArtifact.artifactKind, query.kind),
+					),
+				)) as PayrollCfdiXmlArtifactRow[];
+			const artifact = pickNewestPayrollCfdiArtifact(artifactRows);
+			if (!artifact) {
+				set.status = 404;
+				return buildErrorResponse('Payroll CFDI XML artifact not found', 404);
+			}
+
+			return buildPayrollCfdiXmlDownloadResponse({ voucherId, artifact });
+		},
+		{
+			query: payrollCfdiXmlQuerySchema,
 		},
 	)
 	/**

@@ -2563,6 +2563,7 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				? (existingSameHash ?? existingLatest)
 				: existingSameHash;
 			let artifactId = existingArtifactToReplace?.id ?? crypto.randomUUID();
+			let artifactAfterUniqueConflict: PayrollCfdiXmlArtifactRow | null = null;
 			if (existingArtifactToReplace) {
 				try {
 					await db
@@ -2585,6 +2586,7 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 						throw error;
 					}
 					artifactId = artifactAfterConflict.id;
+					artifactAfterUniqueConflict = artifactAfterConflict;
 				}
 			} else {
 				try {
@@ -2601,7 +2603,22 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 						throw error;
 					}
 					artifactId = artifactAfterConflict.id;
+					artifactAfterUniqueConflict = artifactAfterConflict;
 				}
+			}
+
+			if (artifactAfterUniqueConflict) {
+				return {
+					data: buildPayrollCfdiArtifactSummary({
+						voucherId,
+						artifact: artifactAfterUniqueConflict,
+						status:
+							artifactAfterUniqueConflict.validationErrors.length > 0
+								? 'BLOCKED'
+								: 'VALID',
+						warnings: [],
+					}),
+				};
 			}
 
 			return {

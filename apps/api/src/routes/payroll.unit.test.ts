@@ -173,6 +173,7 @@ interface FakeDbState {
 	pendingBodylessFiscalVoucherConflictOnNextInsert: boolean;
 	pendingFiscalVoucherStampBeforeUpdate: boolean;
 	pendingCfdiXmlArtifactRaceOnNextInsert: boolean;
+	pendingCfdiXmlArtifactRaceXmlHash: string | null;
 }
 
 /**
@@ -1620,7 +1621,9 @@ function createFakeDb(state: FakeDbState): {
 							id: `concurrent-cfdi-xml-artifact-${
 								state.payrollCfdiXmlArtifacts.length + index + 1
 							}`,
+							xmlHash: state.pendingCfdiXmlArtifactRaceXmlHash ?? row.xmlHash,
 						}));
+						state.pendingCfdiXmlArtifactRaceXmlHash = null;
 						state.payrollCfdiXmlArtifacts.push(...concurrentRows);
 						throw createFakeUniqueViolationError();
 					}
@@ -1959,6 +1962,7 @@ const dbState: FakeDbState = {
 	pendingBodylessFiscalVoucherConflictOnNextInsert: false,
 	pendingFiscalVoucherStampBeforeUpdate: false,
 	pendingCfdiXmlArtifactRaceOnNextInsert: false,
+	pendingCfdiXmlArtifactRaceXmlHash: null,
 };
 
 const fakeDb = createFakeDb(dbState);
@@ -2061,6 +2065,7 @@ describe('payroll routes', () => {
 		dbState.pendingBodylessFiscalVoucherConflictOnNextInsert = false;
 		dbState.pendingFiscalVoucherStampBeforeUpdate = false;
 		dbState.pendingCfdiXmlArtifactRaceOnNextInsert = false;
+		dbState.pendingCfdiXmlArtifactRaceXmlHash = null;
 	});
 
 	afterEach(() => {
@@ -3507,6 +3512,7 @@ describe('payroll routes', () => {
 			voucherId: 'voucher-xml-race',
 		});
 		dbState.pendingCfdiXmlArtifactRaceOnNextInsert = true;
+		dbState.pendingCfdiXmlArtifactRaceXmlHash = 'persisted-concurrent-xml-hash';
 
 		const { payrollRoutes } = await import('./payroll.js');
 		const response = await payrollRoutes.handle(
@@ -3521,8 +3527,9 @@ describe('payroll routes', () => {
 		expect(response.status).toBe(200);
 		expect(json.data?.artifactId).toBe('concurrent-cfdi-xml-artifact-1');
 		expect(json.data?.status).toBe('VALID');
-		expect(json.data?.xmlHash).toBe(
-			dbState.payrollCfdiXmlArtifacts[0]?.xmlHash as string,
+		expect(json.data?.xmlHash).toBe('persisted-concurrent-xml-hash');
+		expect(dbState.payrollCfdiXmlArtifacts[0]?.xmlHash).toBe(
+			'persisted-concurrent-xml-hash',
 		);
 		expect(dbState.payrollCfdiXmlArtifacts).toHaveLength(1);
 	});

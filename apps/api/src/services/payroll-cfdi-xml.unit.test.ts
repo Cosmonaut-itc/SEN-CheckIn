@@ -8,6 +8,7 @@ import {
 	formatCfdiDate,
 	formatMoney,
 	formatPayrollDays,
+	type FiscalArtifactManifest,
 	type PayrollCfdiBuildInput,
 	validatePayrollCfdiXmlInput,
 } from './payroll-cfdi-xml.js';
@@ -31,6 +32,7 @@ function buildWeeklyInput(overrides: PayrollCfdiBuildInputOverrides = {}): Payro
 		voucherId: 'voucher-weekly-001',
 		fiscalSnapshotHash: 'snapshot-hash-001',
 		issuedAt: new Date('2026-04-18T09:30:45.000-06:00'),
+		fiscalArtifactManifest: buildFiscalArtifactManifest(),
 		issuer: {
 			rfc: 'AAA010101AAA',
 			name: 'EMPRESA DEMO SA DE CV',
@@ -111,6 +113,29 @@ function buildWeeklyInput(overrides: PayrollCfdiBuildInputOverrides = {}): Payro
 		perceptions: overrides.perceptions ?? base.perceptions,
 		deductions: overrides.deductions ?? base.deductions,
 		otherPayments: overrides.otherPayments ?? base.otherPayments,
+	};
+}
+
+/**
+ * Builds the full fiscal artifact manifest required by the CFDI XML builder.
+ *
+ * @returns Full fiscal artifact manifest
+ */
+function buildFiscalArtifactManifest(): FiscalArtifactManifest {
+	return {
+		exerciseYear: 2026,
+		cfdiVersion: '4.0',
+		payrollComplementVersion: '1.2',
+		source: 'SAT',
+		sourceName: 'SAT CFDI 4.0 y Complemento Nómina 1.2',
+		sourcePublishedAt: '2024-01-01',
+		cfdXsdUrl: 'https://www.sat.gob.mx/sitio_internet/cfd/4/cfdv40.xsd',
+		payrollXsdUrl: 'https://www.sat.gob.mx/sitio_internet/cfd/nomina/nomina12.xsd',
+		tfdXsdUrl:
+			'https://www.sat.gob.mx/sitio_internet/cfd/TimbreFiscalDigital/TimbreFiscalDigitalv11.xsd',
+		catalogVersion: '2026-04-01',
+		validationMatrixVersion: 'nomina12-matrix-2026-04',
+		generatedAt: '2026-04-18T09:30:45',
 	};
 }
 
@@ -343,6 +368,24 @@ describe('payroll CFDI XML builder totals', () => {
 		expect(result.xmlWithoutSeal).toContain(
 			'<nomina12:SubsidioAlEmpleo SubsidioCausado="0.00"/>',
 		);
+	});
+
+	it('preserves the full fiscal artifact manifest from the build input', () => {
+		const manifest = buildFiscalArtifactManifest();
+		const result = buildPayrollCfdiXml(
+			buildWeeklyInput({
+				fiscalArtifactManifest: manifest,
+			}),
+		);
+
+		expect(result.manifest).toEqual(manifest);
+		expect(result.fiscalArtifactManifest).toEqual(manifest);
+		expect(result.manifest.exerciseYear).toBe(2026);
+		expect(result.manifest.cfdiVersion).toBe('4.0');
+		expect(result.manifest.payrollXsdUrl).toBe(
+			'https://www.sat.gob.mx/sitio_internet/cfd/nomina/nomina12.xsd',
+		);
+		expect(result.manifest.validationMatrixVersion).toBe('nomina12-matrix-2026-04');
 	});
 });
 

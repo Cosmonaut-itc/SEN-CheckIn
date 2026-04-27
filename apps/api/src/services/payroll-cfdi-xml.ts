@@ -42,10 +42,18 @@ export interface PayrollCfdiValidationResult {
 }
 
 export interface FiscalArtifactManifest {
-	voucherId: string;
-	fiscalSnapshotHash: string;
-	xmlHash: string;
-	createdAt: string;
+	exerciseYear: number;
+	cfdiVersion: '4.0';
+	payrollComplementVersion: '1.2';
+	source: 'SAT' | 'PAC';
+	sourceName: string;
+	sourcePublishedAt: string | null;
+	cfdXsdUrl: string;
+	payrollXsdUrl: string;
+	tfdXsdUrl: string;
+	catalogVersion: string;
+	validationMatrixVersion: string;
+	generatedAt: string;
 }
 
 export interface PayrollCfdiIssuer {
@@ -120,6 +128,7 @@ export interface PayrollCfdiBuildInput {
 	voucherId: string;
 	fiscalSnapshotHash: string;
 	issuedAt: Date;
+	fiscalArtifactManifest: FiscalArtifactManifest;
 	issuer: PayrollCfdiIssuer;
 	receiver: PayrollCfdiReceiver;
 	payroll: PayrollCfdiPayrollPeriod;
@@ -136,6 +145,7 @@ export interface PayrollCfdiBuildResult {
 	xmlHash: string;
 	validation: PayrollCfdiValidationResult;
 	manifest: FiscalArtifactManifest;
+	fiscalArtifactManifest: FiscalArtifactManifest;
 }
 
 interface PayrollCfdiTotals {
@@ -353,12 +363,8 @@ export function buildPayrollCfdiXml(input: PayrollCfdiBuildInput): PayrollCfdiBu
 		xmlWithoutSeal,
 		xmlHash,
 		validation,
-		manifest: {
-			voucherId: input.voucherId,
-			fiscalSnapshotHash: input.fiscalSnapshotHash,
-			xmlHash,
-			createdAt: formatCfdiDate(input.issuedAt),
-		},
+		manifest: input.fiscalArtifactManifest,
+		fiscalArtifactManifest: input.fiscalArtifactManifest,
 	};
 }
 

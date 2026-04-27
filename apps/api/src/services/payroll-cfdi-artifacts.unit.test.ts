@@ -126,6 +126,7 @@ describe('payroll CFDI XML artifacts', () => {
 		expect(input.receiver.regimeType).toBeNull();
 		expect(input.receiver.employeeNumber).toBeNull();
 		expect(input.receiver.federalEntity).toBeNull();
+		expect(input).not.toHaveProperty('realPayrollComplementPay');
 		expect(input.perceptions[0]).toMatchObject({
 			satTypeCode: '001',
 			employerCode: 'SALARY',

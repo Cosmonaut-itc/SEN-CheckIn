@@ -61,6 +61,7 @@ import {
 	type PayrollFiscalVoucherValidationStatus,
 } from '../services/payroll-fiscal-vouchers.js';
 import {
+	buildBlockedPayrollCfdiArtifactSummary,
 	buildPayrollCfdiArtifactSummary,
 	buildPayrollCfdiXmlDownloadResponse,
 	buildPayrollCfdiXmlPersistencePayload,
@@ -2467,19 +2468,46 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				return buildErrorResponse('Fiscal voucher not found', 404);
 			}
 
-			if (body.forceRegenerate && isStampedFiscalVoucher(voucher)) {
-				set.status = 409;
-				return buildErrorResponse(
-					'Stamped fiscal vouchers cannot regenerate XML artifacts',
-					409,
-				);
-			}
+				if (body.forceRegenerate && isStampedFiscalVoucher(voucher)) {
+					set.status = 409;
+					return buildErrorResponse(
+						'Stamped fiscal vouchers cannot regenerate XML artifacts',
+						409,
+					);
+				}
 
-			const issuedAt = body.issuedAt ? new Date(body.issuedAt) : new Date();
-			const sourceVoucher = toArtifactSourceVoucher(voucher);
-			const payload = buildPayrollCfdiXmlPersistencePayload({
-				voucherRow: sourceVoucher,
-				issuedAt,
+				const voucherValidationErrors = Array.isArray(voucher.validationErrors)
+					? voucher.validationErrors
+					: [];
+				const voucherValidationWarnings = Array.isArray(voucher.validationWarnings)
+					? voucher.validationWarnings
+					: [];
+				if (voucher.status !== 'READY_TO_STAMP' || voucherValidationErrors.length > 0) {
+					set.status = 422;
+					return {
+						data: buildBlockedPayrollCfdiArtifactSummary({
+							voucherId,
+							errors:
+								voucherValidationErrors.length > 0
+									? voucherValidationErrors
+									: [
+											{
+												code: 'XML_FISCAL_VOUCHER_NOT_READY',
+												field: 'status',
+												message:
+													'Fiscal voucher must be READY_TO_STAMP before XML generation.',
+											},
+										],
+							warnings: voucherValidationWarnings,
+						}),
+					};
+				}
+
+				const issuedAt = body.issuedAt ? new Date(body.issuedAt) : new Date();
+				const sourceVoucher = toArtifactSourceVoucher(voucher);
+				const payload = buildPayrollCfdiXmlPersistencePayload({
+					voucherRow: sourceVoucher,
+					issuedAt,
 			});
 			const snapshotHash = mapFiscalVoucherToPayrollCfdiBuildInput({
 				voucherRow: sourceVoucher,
@@ -2520,13 +2548,14 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				);
 			}
 
-			if (payload.status === 'BLOCKED' || !payload.artifact) {
-				set.status = 422;
-				return { data: payload.summary };
-			}
+				if (payload.status === 'BLOCKED' || !payload.artifact) {
+					set.status = 422;
+					return { data: payload.summary };
+				}
+				const artifactPayload = payload.artifact;
 
-			if (existingSameHash && !body.forceRegenerate) {
-				return {
+				if (existingSameHash && !body.forceRegenerate) {
+					return {
 					data: buildPayrollCfdiArtifactSummary({
 						voucherId,
 						artifact: existingSameHash,
@@ -2539,14 +2568,16 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 			/**
 			 * Reloads the artifact matching the XML generated for this request.
 			 *
-			 * @returns Persisted artifact with the generated fiscal snapshot hash, if present
-			 */
-			const findArtifactByGeneratedHash = async (): Promise<PayrollCfdiXmlArtifactRow | null> => {
-				const artifactsAfterConflict = (await db
-					.select()
-					.from(payrollCfdiXmlArtifact)
-					.where(
-						and(
+				 * @returns Persisted artifact with the generated fiscal snapshot hash, if present
+				 */
+				const findArtifactByGeneratedHash = async (
+					databaseClient: Pick<typeof db, 'select'> = db,
+				): Promise<PayrollCfdiXmlArtifactRow | null> => {
+					const artifactsAfterConflict = (await databaseClient
+						.select()
+						.from(payrollCfdiXmlArtifact)
+						.where(
+							and(
 							eq(payrollCfdiXmlArtifact.payrollFiscalVoucherId, voucherId),
 							eq(payrollCfdiXmlArtifact.artifactKind, 'XML_WITHOUT_SEAL'),
 						),
@@ -2559,74 +2590,113 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				);
 			};
 
-			const existingArtifactToReplace = body.forceRegenerate
-				? (existingSameHash ?? existingLatest)
-				: existingSameHash;
-			let artifactId = existingArtifactToReplace?.id ?? crypto.randomUUID();
-			let artifactAfterUniqueConflict: PayrollCfdiXmlArtifactRow | null = null;
-			if (existingArtifactToReplace) {
-				try {
-					await db
-						.update(payrollCfdiXmlArtifact)
-						.set({
-							fiscalSnapshotHash: payload.artifact.fiscalSnapshotHash,
-							xmlHash: payload.artifact.xmlHash,
-							xml: payload.artifact.xml,
-							fiscalArtifactManifest: payload.artifact.fiscalArtifactManifest,
-							validationErrors: payload.artifact.validationErrors,
-							generatedAt: payload.artifact.generatedAt,
-						})
-						.where(eq(payrollCfdiXmlArtifact.id, artifactId));
-				} catch (error) {
-					if (!isUniqueViolationError(error)) {
-						throw error;
+				const existingArtifactToReplace = body.forceRegenerate
+					? (existingSameHash ?? existingLatest)
+					: existingSameHash;
+				const persistResult = await db.transaction(async (tx) => {
+					const writeDb = tx as unknown as Pick<typeof db, 'insert' | 'select' | 'update'>;
+					const guardedVoucherRows = await writeDb
+						.update(payrollFiscalVoucher)
+						.set({ updatedAt: voucher.updatedAt })
+						.where(
+							and(
+								eq(payrollFiscalVoucher.id, voucherId),
+								eq(payrollFiscalVoucher.payrollRunId, runId),
+								eq(payrollFiscalVoucher.organizationId, run.organizationId),
+								eq(payrollFiscalVoucher.status, 'READY_TO_STAMP'),
+								isNull(payrollFiscalVoucher.uuid),
+								isNull(payrollFiscalVoucher.stampedAt),
+							),
+						)
+						.returning({ id: payrollFiscalVoucher.id });
+					if (guardedVoucherRows.length === 0) {
+						return {
+							status: 'STAMPED_OR_NOT_READY' as const,
+							artifactId: null,
+							artifactAfterUniqueConflict: null,
+						};
 					}
-					const artifactAfterConflict = await findArtifactByGeneratedHash();
-					if (!artifactAfterConflict) {
-						throw error;
-					}
-					artifactId = artifactAfterConflict.id;
-					artifactAfterUniqueConflict = artifactAfterConflict;
-				}
-			} else {
-				try {
-					await db.insert(payrollCfdiXmlArtifact).values({
-						id: artifactId,
-						...payload.artifact,
-					});
-				} catch (error) {
-					if (!isUniqueViolationError(error)) {
-						throw error;
-					}
-					const artifactAfterConflict = await findArtifactByGeneratedHash();
-					if (!artifactAfterConflict) {
-						throw error;
-					}
-					artifactId = artifactAfterConflict.id;
-					artifactAfterUniqueConflict = artifactAfterConflict;
-				}
-			}
 
-			if (artifactAfterUniqueConflict) {
-				return {
-					data: buildPayrollCfdiArtifactSummary({
-						voucherId,
-						artifact: artifactAfterUniqueConflict,
-						status:
-							artifactAfterUniqueConflict.validationErrors.length > 0
-								? 'BLOCKED'
-								: 'VALID',
-						warnings: [],
+					let artifactId = existingArtifactToReplace?.id ?? crypto.randomUUID();
+					let artifactAfterUniqueConflict: PayrollCfdiXmlArtifactRow | null = null;
+					if (existingArtifactToReplace) {
+						try {
+							await writeDb
+								.update(payrollCfdiXmlArtifact)
+								.set({
+									fiscalSnapshotHash: artifactPayload.fiscalSnapshotHash,
+									xmlHash: artifactPayload.xmlHash,
+									xml: artifactPayload.xml,
+									fiscalArtifactManifest: artifactPayload.fiscalArtifactManifest,
+									validationErrors: artifactPayload.validationErrors,
+									generatedAt: artifactPayload.generatedAt,
+								})
+								.where(eq(payrollCfdiXmlArtifact.id, artifactId));
+						} catch (error) {
+							if (!isUniqueViolationError(error)) {
+								throw error;
+							}
+							const artifactAfterConflict = await findArtifactByGeneratedHash(writeDb);
+							if (!artifactAfterConflict) {
+								throw error;
+							}
+							artifactId = artifactAfterConflict.id;
+							artifactAfterUniqueConflict = artifactAfterConflict;
+						}
+					} else {
+						try {
+							await writeDb.insert(payrollCfdiXmlArtifact).values({
+								id: artifactId,
+								...artifactPayload,
+							});
+						} catch (error) {
+							if (!isUniqueViolationError(error)) {
+								throw error;
+							}
+							const artifactAfterConflict = await findArtifactByGeneratedHash(writeDb);
+							if (!artifactAfterConflict) {
+								throw error;
+							}
+							artifactId = artifactAfterConflict.id;
+							artifactAfterUniqueConflict = artifactAfterConflict;
+						}
+					}
+
+					return {
+						status: 'PERSISTED' as const,
+						artifactId,
+						artifactAfterUniqueConflict,
+					};
+				});
+
+				if (persistResult.status === 'STAMPED_OR_NOT_READY') {
+					set.status = 409;
+					return buildErrorResponse(
+						'Stamped fiscal vouchers cannot regenerate XML artifacts',
+						409,
+					);
+				}
+
+				if (persistResult.artifactAfterUniqueConflict) {
+					return {
+						data: buildPayrollCfdiArtifactSummary({
+							voucherId,
+							artifact: persistResult.artifactAfterUniqueConflict,
+							status:
+								persistResult.artifactAfterUniqueConflict.validationErrors.length > 0
+									? 'BLOCKED'
+									: 'VALID',
+							warnings: [],
 					}),
 				};
 			}
 
 			return {
-				data: {
-					...payload.summary,
-					artifactId,
-				},
-			};
+					data: {
+						...payload.summary,
+						artifactId: persistResult.artifactId,
+					},
+				};
 		},
 		{
 			body: payrollCfdiXmlGenerateSchema,

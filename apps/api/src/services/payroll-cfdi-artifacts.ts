@@ -156,8 +156,9 @@ export function mapFiscalVoucherToPayrollCfdiBuildInput(args: {
 		})),
 	};
 
-	if (Object.prototype.hasOwnProperty.call(voucher, 'realPayrollComplementPay')) {
-		input.realPayrollComplementPay = readNumber(voucher.realPayrollComplementPay);
+	const realPayrollComplementPay = readNumber(voucher.realPayrollComplementPay);
+	if (realPayrollComplementPay !== null && realPayrollComplementPay > 0) {
+		input.realPayrollComplementPay = realPayrollComplementPay;
 	}
 
 	return input;
@@ -220,6 +221,31 @@ export function buildPayrollCfdiXmlPersistencePayload(args: {
 			errors: buildResult.validation.errors,
 			warnings: buildResult.validation.warnings,
 		},
+	};
+}
+
+/**
+ * Builds a blocked artifact summary for a fiscal voucher that is not ready for XML generation.
+ *
+ * @param args - Blocked summary inputs
+ * @param args.voucherId - Fiscal voucher identifier
+ * @param args.errors - Existing fiscal voucher validation errors
+ * @param args.warnings - Existing fiscal voucher validation warnings
+ * @returns JSON-safe blocked summary without XML
+ */
+export function buildBlockedPayrollCfdiArtifactSummary(args: {
+	voucherId: string;
+	errors: Array<PayrollCfdiValidationIssue | Record<string, unknown>>;
+	warnings: Array<PayrollCfdiValidationIssue | Record<string, unknown>>;
+}): PayrollCfdiArtifactSummary {
+	return {
+		voucherId: args.voucherId,
+		artifactId: null,
+		artifactKind: 'XML_WITHOUT_SEAL',
+		xmlHash: null,
+		status: 'BLOCKED',
+		errors: args.errors,
+		warnings: args.warnings,
 	};
 }
 

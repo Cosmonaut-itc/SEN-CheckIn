@@ -328,7 +328,11 @@ export function validatePayrollCfdiXmlInput(
 		errors.push(createIssue('XML_UNSUPPORTED_PAYROLL_TYPE', 'payroll.type'));
 	}
 
-	if (hasPropertyDeep(input, 'realPayrollComplementPay')) {
+	if (
+		input.realPayrollComplementPay !== null &&
+		input.realPayrollComplementPay !== undefined &&
+		input.realPayrollComplementPay > 0
+	) {
 		errors.push(
 			createIssue('XML_REAL_PAYROLL_COMPLEMENT_FORBIDDEN', 'realPayrollComplementPay'),
 		);
@@ -1123,33 +1127,4 @@ function parseStrictDateKey(value: string | null): Date | null {
  */
 function sha256Hex(value: string): string {
 	return createHash('sha256').update(value).digest('hex');
-}
-
-/**
- * Checks whether an object graph contains a property name.
- *
- * @param value - Value to inspect
- * @param propertyName - Property name to find
- * @returns True when the property exists anywhere in the graph
- */
-function hasPropertyDeep(value: unknown, propertyName: string): boolean {
-	if (value === null || typeof value !== 'object') {
-		return false;
-	}
-
-	if (Object.prototype.hasOwnProperty.call(value, propertyName)) {
-		return true;
-	}
-
-	if (value instanceof Date) {
-		return false;
-	}
-
-	for (const child of Object.values(value)) {
-		if (hasPropertyDeep(child, propertyName)) {
-			return true;
-		}
-	}
-
-	return false;
 }

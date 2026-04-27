@@ -2530,6 +2530,7 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				await db
 					.update(payrollCfdiXmlArtifact)
 					.set({
+						fiscalSnapshotHash: payload.artifact.fiscalSnapshotHash,
 						xmlHash: payload.artifact.xmlHash,
 						xml: payload.artifact.xml,
 						fiscalArtifactManifest: payload.artifact.fiscalArtifactManifest,

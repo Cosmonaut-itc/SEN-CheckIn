@@ -3406,6 +3406,8 @@ describe('payroll routes', () => {
 		const firstJson = (await firstResponse.json()) as {
 			data?: { artifactId: string | null; xmlHash: string | null };
 		};
+		const firstFiscalSnapshotHash = dbState.payrollCfdiXmlArtifacts[0]
+			?.fiscalSnapshotHash as string;
 		const voucher = dbState.payrollFiscalVouchers[0]?.voucher as Record<string, unknown>;
 		const receiver = voucher.receiver as Record<string, unknown>;
 		receiver.department = 'Finanzas';
@@ -3425,6 +3427,9 @@ describe('payroll routes', () => {
 		expect(forceJson.data?.artifactId).toBe(firstJson.data?.artifactId);
 		expect(forceJson.data?.xmlHash).not.toBe(firstJson.data?.xmlHash);
 		expect(dbState.payrollCfdiXmlArtifacts).toHaveLength(1);
+		expect(dbState.payrollCfdiXmlArtifacts[0]?.fiscalSnapshotHash).not.toBe(
+			firstFiscalSnapshotHash,
+		);
 		expect(dbState.payrollCfdiXmlArtifacts[0]?.xml).toContain('Departamento="Finanzas"');
 	});
 

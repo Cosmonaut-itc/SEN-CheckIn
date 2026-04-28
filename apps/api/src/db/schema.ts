@@ -16,6 +16,10 @@ import {
 } from 'drizzle-orm/pg-core';
 import { randomUUID } from 'node:crypto';
 import type { EmployeeTerminationSettlement } from '@sen-checkin/types';
+import type {
+	FiscalArtifactManifest,
+	PayrollCfdiValidationIssue,
+} from '../services/payroll-cfdi-xml.js';
 
 // ============================================================================
 // Auth Tables (Managed by BetterAuth)
@@ -2784,6 +2788,49 @@ export const payrollFiscalVoucher = pgTable(
 		uniqueIndex('payroll_fiscal_voucher_run_employee_uniq').on(
 			table.payrollRunEmployeeId,
 		),
+	],
+);
+
+/**
+ * Persisted CFDI XML artifacts generated from prepared fiscal voucher snapshots.
+ */
+export const payrollCfdiXmlArtifact = pgTable(
+	'payroll_cfdi_xml_artifact',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		payrollFiscalVoucherId: text('payroll_fiscal_voucher_id')
+			.notNull()
+			.references(() => payrollFiscalVoucher.id, { onDelete: 'cascade' }),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organization.id, { onDelete: 'cascade' }),
+		employeeId: text('employee_id')
+			.notNull()
+			.references(() => employee.id, { onDelete: 'cascade' }),
+		artifactKind: text('artifact_kind').notNull(),
+		fiscalSnapshotHash: text('fiscal_snapshot_hash').notNull(),
+		xmlHash: text('xml_hash').notNull(),
+		xml: text('xml').notNull(),
+		fiscalArtifactManifest: jsonb('fiscal_artifact_manifest')
+			.$type<FiscalArtifactManifest>()
+			.notNull(),
+		validationErrors: jsonb('validation_errors')
+			.$type<PayrollCfdiValidationIssue[]>()
+			.default([])
+			.notNull(),
+		generatedAt: timestamp('generated_at').defaultNow().notNull(),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+	},
+	(table) => [
+		uniqueIndex('payroll_cfdi_xml_artifact_voucher_kind_hash_uniq').on(
+			table.payrollFiscalVoucherId,
+			table.artifactKind,
+			table.fiscalSnapshotHash,
+		),
+		index('payroll_cfdi_xml_artifact_organization_idx').on(table.organizationId),
+		index('payroll_cfdi_xml_artifact_employee_idx').on(table.employeeId),
 	],
 );
 

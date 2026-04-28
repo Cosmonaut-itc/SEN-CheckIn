@@ -15,6 +15,7 @@ import {
 	type AttendanceRow,
 	type PayrollEmployeeRow,
 } from '../services/payroll-calculation.js';
+import { mapFiscalVoucherToPayrollCfdiBuildInput } from '../services/payroll-cfdi-artifacts.js';
 import {
 	AET_P10_2026_PAYROLL_SETTINGS,
 	AET_P10_2026_PERIOD,
@@ -164,6 +165,8 @@ interface FakeDbState {
 	payrollRuns: Record<string, unknown>[];
 	payrollRunEmployees: Record<string, unknown>[];
 	payrollFiscalVouchers: Record<string, unknown>[];
+	payrollCfdiXmlArtifacts: Record<string, unknown>[];
+	payrollFiscalVoucherSelectConditions: DrizzleCondition[];
 	payrollFiscalVoucherUpdateCount: number;
 	transactionCalled: boolean;
 	deductionUpdateConditions: DrizzleCondition[];
@@ -171,6 +174,10 @@ interface FakeDbState {
 	pendingDeductionMutationBeforeUpdate: FakePendingDeductionMutation | null;
 	pendingBodylessFiscalVoucherConflictOnNextInsert: boolean;
 	pendingFiscalVoucherStampBeforeUpdate: boolean;
+	pendingFiscalVoucherStampBeforeCfdiXmlWrite: boolean;
+	pendingCfdiXmlArtifactRaceOnNextInsert: boolean;
+	pendingCfdiXmlArtifactRaceXmlHash: string | null;
+	simulatePostgresAbortAfterCfdiXmlUniqueViolation: boolean;
 }
 
 /**
@@ -474,6 +481,101 @@ function seedAetP10ProcessScenario(): void {
 	);
 }
 
+/**
+ * Seeds a valid persisted fiscal voucher that can generate a Phase 3 CFDI XML artifact.
+ *
+ * @param args - Scenario identifiers
+ * @returns Seeded run and voucher identifiers
+ */
+function seedValidPayrollCfdiXmlScenario(args: { runId: string; voucherId: string }): {
+	runId: string;
+	voucherId: string;
+} {
+	dbState.sessionRole = 'admin';
+	dbState.payrollRuns = [
+		{
+			id: args.runId,
+			organizationId: dbState.organizationId,
+			status: 'PROCESSED',
+			paymentFrequency: 'WEEKLY',
+			periodStart: new Date('2026-04-06T06:00:00.000Z'),
+			periodEnd: new Date('2026-04-13T05:59:59.999Z'),
+		},
+	];
+	dbState.payrollFiscalVouchers = [
+		{
+			id: args.voucherId,
+			payrollRunId: args.runId,
+			payrollRunEmployeeId: `${args.voucherId}-run-employee`,
+			organizationId: dbState.organizationId,
+			employeeId: `${args.voucherId}-employee`,
+			status: 'READY_TO_STAMP',
+			uuid: null,
+			stampedAt: null,
+			voucher: {
+				issuer: {
+					rfc: 'AAA010101AAA',
+					name: 'ACME SA DE CV',
+					fiscalRegime: '601',
+					expeditionPostalCode: '64000',
+					employerRegistration: 'A1234567890',
+				},
+				receiver: {
+					name: 'Ada Lovelace',
+					rfc: 'LOAA800101ABC',
+					curp: 'LOAA800101MDFABC09',
+					nss: '12345678901',
+					fiscalRegime: '605',
+					fiscalPostalCode: '64000',
+					employmentStartDateKey: '2024-01-01',
+					contractType: '01',
+					unionized: 'No',
+					workdayType: '01',
+					regimeType: '02',
+					employeeNumber: 'EMP-001',
+					department: 'Operaciones',
+					position: 'Tecnica',
+					positionRisk: '1',
+					baseContributionSalary: 500,
+					integratedDailySalary: 550,
+					federalEntity: 'NLE',
+				},
+				paymentFrequency: '02',
+				periodStartDateKey: '2026-04-06',
+				periodEndDateKey: '2026-04-12',
+				paymentDateKey: '2026-04-12',
+				daysPaid: 7,
+				perceptions: [
+					{
+						internalType: 'SALARY',
+						satTypeCode: '001',
+						internalCode: '001',
+						description: 'Sueldo',
+						taxedAmount: 1000,
+						exemptAmount: 0,
+					},
+				],
+				deductions: [
+					{
+						internalType: 'ISR',
+						satTypeCode: '002',
+						internalCode: '002',
+						description: 'ISR',
+						amount: 100,
+					},
+				],
+				otherPayments: [],
+			},
+			validationErrors: [],
+			validationWarnings: [],
+			createdAt: new Date(),
+			updatedAt: new Date(),
+		},
+	];
+
+	return args;
+}
+
 type PersistedPayrollDeductionBreakdown = {
 	appliedAmount: number;
 	satDeductionCode: string | null;
@@ -686,7 +788,56 @@ function readFakeRowColumn(row: Record<string, unknown>, columnName: string): un
 	if (columnName === 'stamped_at') {
 		return row.stampedAt;
 	}
+	if (columnName === 'payroll_run_id') {
+		return row.payrollRunId;
+	}
+	if (columnName === 'payroll_fiscal_voucher_id') {
+		return row.payrollFiscalVoucherId;
+	}
+	if (columnName === 'artifact_kind') {
+		return row.artifactKind;
+	}
+	if (columnName === 'fiscal_snapshot_hash') {
+		return row.fiscalSnapshotHash;
+	}
+	if (columnName === 'organization_id') {
+		return row.organizationId;
+	}
+	if (columnName === 'employee_id') {
+		return row.employeeId;
+	}
 	return row[columnName];
+}
+
+/**
+ * Checks whether two fake XML artifact rows share the database unique key.
+ *
+ * @param left - Candidate artifact row
+ * @param right - Candidate artifact row
+ * @returns True when the rows share voucher, kind, and snapshot hash
+ */
+function hasSameCfdiXmlArtifactUniqueKey(
+	left: Record<string, unknown>,
+	right: Record<string, unknown>,
+): boolean {
+	return (
+		left.payrollFiscalVoucherId === right.payrollFiscalVoucherId &&
+		left.artifactKind === right.artifactKind &&
+		left.fiscalSnapshotHash === right.fiscalSnapshotHash
+	);
+}
+
+/**
+ * Builds a PostgreSQL-like unique violation error for fake DB tests.
+ *
+ * @returns Unique violation error
+ */
+function createFakeUniqueViolationError(): Error & { code: string } {
+	const error = new Error('duplicate key value violates unique constraint') as Error & {
+		code: string;
+	};
+	error.code = '23505';
+	return error;
 }
 
 /**
@@ -1004,8 +1155,22 @@ function applyMockedPaymentDateBulkUpdate(
  * @returns Fake DB instance
  */
 function createFakeDb(state: FakeDbState): {
+	insert: (table: unknown) => {
+		values: (values: Record<string, unknown> | Record<string, unknown>[]) => Promise<void> & {
+			onConflictDoNothing: () => Promise<void>;
+		};
+	};
 	select: (selection?: unknown) => unknown;
 	transaction: <T>(fn: (tx: unknown) => Promise<T>) => Promise<T>;
+	update: (table: unknown) => {
+		set: (values: Record<string, unknown>) => {
+			where: (condition: DrizzleCondition) => {
+				returning: (
+					selection?: Record<string, unknown>,
+				) => Promise<Record<string, unknown>[]>;
+			} & Promise<void>;
+		};
+	};
 } {
 	/**
 	 * Minimal Drizzle-like query builder that is awaitable (`thenable`).
@@ -1021,7 +1186,10 @@ function createFakeDb(state: FakeDbState): {
 		 *
 		 * @param selection - Drizzle-style selection shape passed to `select()`
 		 */
-		constructor(private readonly selection: unknown) {}
+		constructor(
+			private readonly selection: unknown,
+			private readonly assertCanExecute: () => void = () => undefined,
+		) {}
 
 		/**
 		 * Sets the source table for the query.
@@ -1096,6 +1264,7 @@ function createFakeDb(state: FakeDbState): {
 		 * @returns Result rows
 		 */
 		private execute(): unknown[] {
+			this.assertCanExecute();
 			const tableName = this.tableName;
 			if (!tableName) {
 				return [];
@@ -1307,11 +1476,22 @@ function createFakeDb(state: FakeDbState): {
 			}
 
 			if (tableName === 'payroll_fiscal_voucher') {
-				const whereEq = this.whereCondition?.kind === 'eq' ? this.whereCondition : null;
-				const runId = typeof whereEq?.value === 'string' ? whereEq.value : null;
-				return runId === null
-					? state.payrollFiscalVouchers
-					: state.payrollFiscalVouchers.filter((row) => row.payrollRunId === runId);
+				if (this.whereCondition) {
+					state.payrollFiscalVoucherSelectConditions.push(this.whereCondition);
+				}
+				return this.whereCondition
+					? state.payrollFiscalVouchers.filter((row) =>
+							matchesFakeRowCondition(row, this.whereCondition as DrizzleCondition),
+						)
+					: state.payrollFiscalVouchers;
+			}
+
+			if (tableName === 'payroll_cfdi_xml_artifact') {
+				return this.whereCondition
+					? state.payrollCfdiXmlArtifacts.filter((row) =>
+							matchesFakeRowCondition(row, this.whereCondition as DrizzleCondition),
+						)
+					: state.payrollCfdiXmlArtifacts;
 			}
 
 			return [];
@@ -1340,7 +1520,13 @@ function createFakeDb(state: FakeDbState): {
 	 *
 	 * @returns Transaction client with insert/update/select helpers
 	 */
-	const createTransaction = (): {
+	const createTransaction = (
+		options: {
+			simulatePostgresAbortAfterUniqueViolation: boolean;
+		} = {
+			simulatePostgresAbortAfterUniqueViolation: false,
+		},
+	): {
 		insert: (table: unknown) => {
 			values: (
 				values: Record<string, unknown> | Record<string, unknown>[],
@@ -1360,6 +1546,28 @@ function createFakeDb(state: FakeDbState): {
 		select: (selection?: unknown) => unknown;
 		execute: (query: unknown) => Promise<void>;
 	} => {
+		let transactionAborted = false;
+
+		/**
+		 * Marks the fake transaction as aborted after a PostgreSQL-style write error.
+		 */
+		const markTransactionAborted = (): void => {
+			if (options.simulatePostgresAbortAfterUniqueViolation) {
+				transactionAborted = true;
+			}
+		};
+
+		/**
+		 * Throws when the fake transaction has already seen a PostgreSQL-style error.
+		 */
+		const assertTransactionCanExecute = (): void => {
+			if (transactionAborted) {
+				throw new Error(
+					'current transaction is aborted, commands ignored until end of transaction block',
+				);
+			}
+		};
+
 		/**
 		 * Begins an insert operation.
 		 *
@@ -1441,6 +1649,59 @@ function createFakeDb(state: FakeDbState): {
 								updatedAt: new Date(),
 								...row,
 							})),
+					);
+				}
+				if (tableName === 'payroll_cfdi_xml_artifact') {
+					if (state.pendingFiscalVoucherStampBeforeCfdiXmlWrite) {
+						const artifactVoucherIds = rows
+							.map((row) => row.payrollFiscalVoucherId)
+							.filter((id): id is string => typeof id === 'string');
+						const voucher = state.payrollFiscalVouchers.find((candidate) =>
+							artifactVoucherIds.includes(candidate.id as string),
+						);
+						if (voucher) {
+							voucher.uuid = 'concurrent-stamp-uuid';
+							voucher.stampedAt = new Date('2026-04-12T13:00:00.000Z');
+							voucher.status = 'STAMPED';
+						}
+						state.pendingFiscalVoucherStampBeforeCfdiXmlWrite = false;
+					}
+					if (state.pendingCfdiXmlArtifactRaceOnNextInsert) {
+						state.pendingCfdiXmlArtifactRaceOnNextInsert = false;
+						const concurrentRows = rows.map((row, index) => ({
+							createdAt: new Date(),
+							...row,
+							id: `concurrent-cfdi-xml-artifact-${
+								state.payrollCfdiXmlArtifacts.length + index + 1
+							}`,
+							xmlHash: state.pendingCfdiXmlArtifactRaceXmlHash ?? row.xmlHash,
+						}));
+						state.pendingCfdiXmlArtifactRaceXmlHash = null;
+						state.payrollCfdiXmlArtifacts.push(...concurrentRows);
+						markTransactionAborted();
+						throw createFakeUniqueViolationError();
+					}
+					if (
+						rows.some((row) =>
+							state.payrollCfdiXmlArtifacts.some((existing) =>
+								hasSameCfdiXmlArtifactUniqueKey(existing, row),
+							),
+						)
+					) {
+						markTransactionAborted();
+						throw createFakeUniqueViolationError();
+					}
+					state.payrollCfdiXmlArtifacts.push(
+						...rows.map((row, index) => ({
+							id:
+								typeof row.id === 'string'
+									? row.id
+									: `cfdi-xml-artifact-${
+											state.payrollCfdiXmlArtifacts.length + index + 1
+										}`,
+							createdAt: new Date(),
+							...row,
+						})),
 					);
 				}
 				return Object.assign(Promise.resolve(), {
@@ -1549,7 +1810,10 @@ function createFakeDb(state: FakeDbState): {
 								(value): value is string => typeof value === 'string',
 							) ?? [];
 						state.payrollFiscalVoucherUpdateCount += 1;
-						if (state.pendingFiscalVoucherStampBeforeUpdate) {
+						if (
+							state.pendingFiscalVoucherStampBeforeUpdate ||
+							state.pendingFiscalVoucherStampBeforeCfdiXmlWrite
+						) {
 							for (const voucher of state.payrollFiscalVouchers) {
 								const shouldStamp =
 									voucher.id === voucherId ||
@@ -1564,6 +1828,7 @@ function createFakeDb(state: FakeDbState): {
 								break;
 							}
 							state.pendingFiscalVoucherStampBeforeUpdate = false;
+							state.pendingFiscalVoucherStampBeforeCfdiXmlWrite = false;
 						}
 
 						const updatedRows: Record<string, unknown>[] = [];
@@ -1573,6 +1838,41 @@ function createFakeDb(state: FakeDbState): {
 							}
 							applyMockedPaymentDateBulkUpdate(voucher, values);
 							updatedRows.push({ id: voucher.id });
+						}
+
+						return updatedRows;
+					}
+
+					if (tableName === 'payroll_cfdi_xml_artifact') {
+						const updatedRows: Record<string, unknown>[] = [];
+						for (const artifact of state.payrollCfdiXmlArtifacts) {
+							if (!matchesFakeRowCondition(artifact, condition)) {
+								continue;
+							}
+							if (state.pendingFiscalVoucherStampBeforeCfdiXmlWrite) {
+								const voucher = state.payrollFiscalVouchers.find(
+									(candidate) => candidate.id === artifact.payrollFiscalVoucherId,
+								);
+								if (voucher) {
+									voucher.uuid = 'concurrent-stamp-uuid';
+									voucher.stampedAt = new Date('2026-04-12T13:00:00.000Z');
+									voucher.status = 'STAMPED';
+								}
+								state.pendingFiscalVoucherStampBeforeCfdiXmlWrite = false;
+							}
+							const updatedArtifact = { ...artifact, ...values };
+							if (
+								state.payrollCfdiXmlArtifacts.some(
+									(existing) =>
+										existing.id !== artifact.id &&
+										hasSameCfdiXmlArtifactUniqueKey(existing, updatedArtifact),
+								)
+							) {
+								markTransactionAborted();
+								throw createFakeUniqueViolationError();
+							}
+							Object.assign(artifact, values);
+							updatedRows.push({ id: artifact.id });
 						}
 
 						return updatedRows;
@@ -1618,7 +1918,8 @@ function createFakeDb(state: FakeDbState): {
 		 * @param selection - Drizzle-style selection shape passed to `select()`
 		 * @returns Thenable query builder
 		 */
-		const select = (selection?: unknown) => new FakeQuery(selection);
+		const select = (selection?: unknown) =>
+			new FakeQuery(selection, assertTransactionCanExecute);
 
 		/**
 		 * Executes a raw SQL statement (no-op for tests).
@@ -1668,23 +1969,61 @@ function createFakeDb(state: FakeDbState): {
 			payrollRuns: state.payrollRuns,
 			payrollRunEmployees: state.payrollRunEmployees,
 			payrollFiscalVouchers: state.payrollFiscalVouchers,
+			payrollCfdiXmlArtifacts: state.payrollCfdiXmlArtifacts,
 		});
 
 		try {
-			return await fn(createTransaction());
+			return await fn(
+				createTransaction({
+					simulatePostgresAbortAfterUniqueViolation:
+						state.simulatePostgresAbortAfterCfdiXmlUniqueViolation,
+				}),
+			);
 		} catch (error) {
+			const concurrentlyCommittedCfdiXmlArtifacts = state.payrollCfdiXmlArtifacts.filter(
+				(row) =>
+					typeof row.id === 'string' &&
+					row.id.startsWith('concurrent-cfdi-xml-artifact-'),
+			);
 			state.employees = snapshot.employees;
 			state.employeeDeductions = snapshot.employeeDeductions;
 			state.payrollRuns = snapshot.payrollRuns;
 			state.payrollRunEmployees = snapshot.payrollRunEmployees;
 			state.payrollFiscalVouchers = snapshot.payrollFiscalVouchers;
+			state.payrollCfdiXmlArtifacts = [
+				...snapshot.payrollCfdiXmlArtifacts,
+				...concurrentlyCommittedCfdiXmlArtifacts.filter(
+					(concurrentArtifact) =>
+						!snapshot.payrollCfdiXmlArtifacts.some(
+							(snapshotArtifact) => snapshotArtifact.id === concurrentArtifact.id,
+						),
+				),
+			];
 			throw error;
 		}
 	};
 
+	/**
+	 * Begins a top-level insert operation.
+	 *
+	 * @param table - Drizzle table instance
+	 * @returns Insert builder
+	 */
+	const insert = (table: unknown) => createTransaction().insert(table);
+
+	/**
+	 * Begins a top-level update operation.
+	 *
+	 * @param table - Drizzle table instance
+	 * @returns Update builder
+	 */
+	const update = (table: unknown) => createTransaction().update(table);
+
 	return {
+		insert,
 		select,
 		transaction,
+		update,
 	};
 }
 
@@ -1701,6 +2040,8 @@ const dbState: FakeDbState = {
 	payrollRuns: [],
 	payrollRunEmployees: [],
 	payrollFiscalVouchers: [],
+	payrollCfdiXmlArtifacts: [],
+	payrollFiscalVoucherSelectConditions: [],
 	payrollFiscalVoucherUpdateCount: 0,
 	transactionCalled: false,
 	deductionUpdateConditions: [],
@@ -1708,6 +2049,10 @@ const dbState: FakeDbState = {
 	pendingDeductionMutationBeforeUpdate: null,
 	pendingBodylessFiscalVoucherConflictOnNextInsert: false,
 	pendingFiscalVoucherStampBeforeUpdate: false,
+	pendingFiscalVoucherStampBeforeCfdiXmlWrite: false,
+	pendingCfdiXmlArtifactRaceOnNextInsert: false,
+	pendingCfdiXmlArtifactRaceXmlHash: null,
+	simulatePostgresAbortAfterCfdiXmlUniqueViolation: false,
 };
 
 const fakeDb = createFakeDb(dbState);
@@ -1801,6 +2146,8 @@ describe('payroll routes', () => {
 		dbState.payrollRuns = [];
 		dbState.payrollRunEmployees = [];
 		dbState.payrollFiscalVouchers = [];
+		dbState.payrollCfdiXmlArtifacts = [];
+		dbState.payrollFiscalVoucherSelectConditions = [];
 		dbState.payrollFiscalVoucherUpdateCount = 0;
 		dbState.transactionCalled = false;
 		dbState.deductionUpdateConditions = [];
@@ -1808,6 +2155,10 @@ describe('payroll routes', () => {
 		dbState.pendingDeductionMutationBeforeUpdate = null;
 		dbState.pendingBodylessFiscalVoucherConflictOnNextInsert = false;
 		dbState.pendingFiscalVoucherStampBeforeUpdate = false;
+		dbState.pendingFiscalVoucherStampBeforeCfdiXmlWrite = false;
+		dbState.pendingCfdiXmlArtifactRaceOnNextInsert = false;
+		dbState.pendingCfdiXmlArtifactRaceXmlHash = null;
+		dbState.simulatePostgresAbortAfterCfdiXmlUniqueViolation = false;
 	});
 
 	afterEach(() => {
@@ -2978,6 +3329,578 @@ describe('payroll routes', () => {
 		expect(json.data?.vouchers?.[0]?.validationErrors.map((error) => error.code)).toContain(
 			'EMPLOYEE_WITHHOLDINGS_INVALID',
 		);
+	});
+
+	it('returns a blocked XML artifact summary without XML when Phase 3 voucher fields are missing', async () => {
+		dbState.sessionRole = 'admin';
+		dbState.payrollRuns = [
+			{
+				id: 'processed-run-xml-1',
+				organizationId: dbState.organizationId,
+				status: 'PROCESSED',
+				paymentFrequency: 'WEEKLY',
+				periodStart: new Date('2026-04-06T06:00:00.000Z'),
+				periodEnd: new Date('2026-04-13T05:59:59.999Z'),
+			},
+		];
+		dbState.payrollFiscalVouchers = [
+			{
+				id: 'voucher-xml-blocked',
+				payrollRunId: 'processed-run-xml-1',
+				payrollRunEmployeeId: 'run-employee-xml-1',
+				organizationId: dbState.organizationId,
+				employeeId: 'emp-xml-1',
+				status: 'READY_TO_STAMP',
+				uuid: null,
+				stampedAt: null,
+				voucher: {
+					issuer: {
+						rfc: 'AAA010101AAA',
+						name: 'ACME SA DE CV',
+						fiscalRegime: '601',
+						expeditionPostalCode: '64000',
+					},
+					receiver: {
+						name: 'Ada Lovelace',
+						rfc: 'LOAA800101ABC',
+						curp: 'LOAA800101MDFABC09',
+						nss: '12345678901',
+						fiscalRegime: '605',
+						fiscalPostalCode: '64000',
+						contractType: '01',
+						workdayType: '01',
+					},
+					paymentFrequency: 'WEEKLY',
+					periodStartDateKey: '2026-04-06',
+					periodEndDateKey: '2026-04-12',
+					paymentDateKey: '2026-04-12',
+					perceptions: [
+						{
+							internalType: 'SALARY',
+							satTypeCode: '001',
+							internalCode: 'SALARY',
+							description: 'Sueldo',
+							taxedAmount: 1000,
+							exemptAmount: 0,
+						},
+					],
+					deductions: [],
+					otherPayments: [],
+					realPayrollComplementPay: null,
+				},
+				validationErrors: [],
+				validationWarnings: [],
+				createdAt: new Date(),
+				updatedAt: new Date(),
+			},
+		];
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const response = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(
+				'/payroll/runs/processed-run-xml-1/fiscal-vouchers/voucher-xml-blocked/xml',
+				{ issuedAt: '2026-04-12T12:00:00.000Z' },
+			),
+		);
+		const json = (await response.json()) as {
+			data?: {
+				artifactId: string | null;
+				status: string;
+				errors: Array<{ code: string }>;
+				xml?: string;
+			};
+		};
+
+		expect(response.status).toBe(422);
+		expect(json.data?.artifactId).toBeNull();
+		expect(json.data?.status).toBe('BLOCKED');
+		expect(json.data).not.toHaveProperty('xml');
+		expect(json.data?.errors.map((error) => error.code)).toContain(
+			'XML_EMPLOYMENT_START_DATE_REQUIRED',
+		);
+		expect(dbState.payrollCfdiXmlArtifacts).toHaveLength(0);
+	});
+
+	it('generates XML artifacts idempotently and downloads the newest XML with attachment headers', async () => {
+		dbState.sessionRole = 'admin';
+		dbState.payrollRuns = [
+			{
+				id: 'processed-run-xml-2',
+				organizationId: dbState.organizationId,
+				status: 'PROCESSED',
+				paymentFrequency: 'WEEKLY',
+				periodStart: new Date('2026-04-06T06:00:00.000Z'),
+				periodEnd: new Date('2026-04-13T05:59:59.999Z'),
+			},
+		];
+		dbState.payrollFiscalVouchers = [
+			{
+				id: 'voucher-xml-valid',
+				payrollRunId: 'processed-run-xml-2',
+				payrollRunEmployeeId: 'run-employee-xml-2',
+				organizationId: dbState.organizationId,
+				employeeId: 'emp-xml-2',
+				status: 'READY_TO_STAMP',
+				uuid: null,
+				stampedAt: null,
+				voucher: {
+					issuer: {
+						rfc: 'AAA010101AAA',
+						name: 'ACME SA DE CV',
+						fiscalRegime: '601',
+						expeditionPostalCode: '64000',
+						employerRegistration: 'A1234567890',
+					},
+					receiver: {
+						name: 'Ada Lovelace',
+						rfc: 'LOAA800101ABC',
+						curp: 'LOAA800101MDFABC09',
+						nss: '12345678901',
+						fiscalRegime: '605',
+						fiscalPostalCode: '64000',
+						employmentStartDateKey: '2024-01-01',
+						contractType: '01',
+						unionized: 'No',
+						workdayType: '01',
+						regimeType: '02',
+						employeeNumber: 'EMP-001',
+						department: 'Operaciones',
+						position: 'Tecnica',
+						positionRisk: '1',
+						baseContributionSalary: 500,
+						integratedDailySalary: 550,
+						federalEntity: 'NLE',
+					},
+					paymentFrequency: '02',
+					periodStartDateKey: '2026-04-06',
+					periodEndDateKey: '2026-04-12',
+					paymentDateKey: '2026-04-12',
+					daysPaid: 7,
+					perceptions: [
+						{
+							internalType: 'SALARY',
+							satTypeCode: '001',
+							internalCode: '001',
+							description: 'Sueldo',
+							taxedAmount: 1000,
+							exemptAmount: 0,
+						},
+					],
+					deductions: [
+						{
+							internalType: 'ISR',
+							satTypeCode: '002',
+							internalCode: '002',
+							description: 'ISR',
+							amount: 100,
+						},
+					],
+					otherPayments: [],
+					realPayrollComplementPay: null,
+				},
+				validationErrors: [],
+				validationWarnings: [],
+				createdAt: new Date(),
+				updatedAt: new Date(),
+			},
+		];
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const firstResponse = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(
+				'/payroll/runs/processed-run-xml-2/fiscal-vouchers/voucher-xml-valid/xml',
+				{ issuedAt: '2026-04-12T12:00:00.000Z' },
+			),
+		);
+		const firstJson = (await firstResponse.json()) as {
+			data?: {
+				artifactId: string | null;
+				xmlHash: string | null;
+				status: string;
+				xml?: string;
+			};
+		};
+
+		expect(firstResponse.status).toBe(200);
+		expect(typeof firstJson.data?.artifactId).toBe('string');
+		expect(firstJson.data?.status).toBe('VALID');
+		expect(firstJson.data).not.toHaveProperty('xml');
+		expect(dbState.payrollCfdiXmlArtifacts).toHaveLength(1);
+
+		const secondResponse = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(
+				'/payroll/runs/processed-run-xml-2/fiscal-vouchers/voucher-xml-valid/xml',
+				{ issuedAt: '2026-04-12T12:00:00.000Z' },
+			),
+		);
+		const secondJson = (await secondResponse.json()) as {
+			data?: { artifactId: string | null; xmlHash: string | null; xml?: string };
+		};
+
+		expect(secondResponse.status).toBe(200);
+		expect(secondJson.data?.artifactId).toBe(firstJson.data?.artifactId);
+		expect(secondJson.data?.xmlHash).toBe(firstJson.data?.xmlHash);
+		expect(secondJson.data).not.toHaveProperty('xml');
+		expect(dbState.payrollCfdiXmlArtifacts).toHaveLength(1);
+
+		const downloadResponse = await payrollRoutes.handle(
+			createApiKeyJsonGetRequest(
+				'/payroll/runs/processed-run-xml-2/fiscal-vouchers/voucher-xml-valid/xml',
+			),
+		);
+
+		expect(downloadResponse.status).toBe(200);
+		expect(downloadResponse.headers.get('content-type')).toBe('application/xml; charset=utf-8');
+		expect(downloadResponse.headers.get('cache-control')).toBe('no-store');
+		expect(downloadResponse.headers.get('content-disposition')).toContain(
+			'voucher-xml-valid-XML_WITHOUT_SEAL.xml',
+		);
+		expect(await downloadResponse.text()).toContain('<cfdi:Comprobante');
+	});
+
+	it('returns an existing same-snapshot XML artifact without rebuilding invalid current XML', async () => {
+		const issuedAt = new Date('2026-04-12T12:00:00.000Z');
+		const { runId, voucherId } = seedValidPayrollCfdiXmlScenario({
+			runId: 'processed-run-xml-idempotent-skip',
+			voucherId: 'voucher-xml-idempotent-skip',
+		});
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const firstResponse = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/${voucherId}/xml`, {
+				issuedAt: issuedAt.toISOString(),
+			}),
+		);
+		const firstJson = (await firstResponse.json()) as {
+			data?: { artifactId: string | null; xmlHash: string | null };
+		};
+		const voucher = dbState.payrollFiscalVouchers[0];
+		const artifact = dbState.payrollCfdiXmlArtifacts[0];
+		if (!voucher || !artifact) {
+			throw new Error('Expected seeded fiscal voucher and generated XML artifact.');
+		}
+		const voucherSnapshot = voucher.voucher as Record<string, unknown>;
+		const receiver = voucherSnapshot.receiver as Record<string, unknown>;
+		receiver.employmentStartDateKey = null;
+		artifact.fiscalSnapshotHash = mapFiscalVoucherToPayrollCfdiBuildInput({
+			voucherRow: {
+				id: voucher.id as string,
+				payrollRunId: voucher.payrollRunId as string,
+				organizationId: voucher.organizationId as string,
+				employeeId: voucher.employeeId as string,
+				status: voucher.status as string,
+				uuid: voucher.uuid as string | null,
+				stampedAt: voucher.stampedAt as Date | string | null,
+				voucher: voucherSnapshot,
+			},
+			issuedAt,
+		}).fiscalSnapshotHash;
+
+		const idempotentResponse = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/${voucherId}/xml`, {
+				issuedAt: issuedAt.toISOString(),
+			}),
+		);
+		const idempotentJson = (await idempotentResponse.json()) as {
+			data?: { artifactId: string | null; xmlHash: string | null; status: string };
+		};
+
+		expect(firstResponse.status).toBe(200);
+		expect(idempotentResponse.status).toBe(200);
+		expect(idempotentJson.data?.artifactId).toBe(firstJson.data?.artifactId);
+		expect(idempotentJson.data?.xmlHash).toBe(firstJson.data?.xmlHash);
+		expect(idempotentJson.data?.status).toBe('VALID');
+		expect(dbState.payrollCfdiXmlArtifacts).toHaveLength(1);
+	});
+
+	it('queries a single fiscal voucher by run, voucher, and organization for XML generation and download', async () => {
+		const { runId, voucherId } = seedValidPayrollCfdiXmlScenario({
+			runId: 'processed-run-xml-filtered',
+			voucherId: 'voucher-xml-filtered-target',
+		});
+		const targetVoucher = dbState.payrollFiscalVouchers[0];
+		if (!targetVoucher) {
+			throw new Error('Expected seeded fiscal voucher.');
+		}
+		dbState.payrollFiscalVouchers.push({
+			...targetVoucher,
+			id: 'voucher-xml-filtered-other',
+			employeeId: 'emp-xml-filtered-other',
+		});
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const generateResponse = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/${voucherId}/xml`, {
+				issuedAt: '2026-04-12T12:00:00.000Z',
+			}),
+		);
+		const downloadResponse = await payrollRoutes.handle(
+			createApiKeyJsonGetRequest(`/payroll/runs/${runId}/fiscal-vouchers/${voucherId}/xml`),
+		);
+		const lookupConditions = dbState.payrollFiscalVoucherSelectConditions.map((condition) =>
+			flattenEqualityConditions(condition),
+		);
+		const targetedLookupConditions = lookupConditions.filter(
+			(condition) =>
+				condition.payroll_run_id === runId &&
+				condition.id === voucherId &&
+				condition.organization_id === dbState.organizationId,
+		);
+
+		expect(generateResponse.status).toBe(200);
+		expect(downloadResponse.status).toBe(200);
+		expect(targetedLookupConditions).toHaveLength(2);
+	});
+
+	it('blocks XML generation for persisted BLOCKED fiscal vouchers before building artifacts', async () => {
+		const { runId, voucherId } = seedValidPayrollCfdiXmlScenario({
+			runId: 'processed-run-xml-blocked-source',
+			voucherId: 'voucher-xml-blocked-source',
+		});
+		const voucher = dbState.payrollFiscalVouchers[0];
+		if (!voucher) {
+			throw new Error('Expected seeded fiscal voucher.');
+		}
+		voucher.status = 'BLOCKED';
+		voucher.validationErrors = [
+			{
+				code: 'UNMAPPED_DEDUCTION',
+				field: 'deductions',
+				message: 'Deduction requires SAT mapping before XML generation.',
+			},
+		];
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const response = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/${voucherId}/xml`, {
+				issuedAt: '2026-04-12T12:00:00.000Z',
+			}),
+		);
+		const json = (await response.json()) as {
+			data?: {
+				artifactId: string | null;
+				status: string;
+				errors: Array<{ code: string }>;
+				xml?: string;
+			};
+		};
+
+		expect(response.status).toBe(422);
+		expect(json.data?.artifactId).toBeNull();
+		expect(json.data?.status).toBe('BLOCKED');
+		expect(json.data).not.toHaveProperty('xml');
+		expect(json.data?.errors.map((error) => error.code)).toContain('UNMAPPED_DEDUCTION');
+		expect(dbState.payrollCfdiXmlArtifacts).toHaveLength(0);
+	});
+
+	it('force-regenerates XML by replacing the existing unstamped voucher artifact even when the snapshot hash changes', async () => {
+		const { runId, voucherId } = seedValidPayrollCfdiXmlScenario({
+			runId: 'processed-run-xml-force',
+			voucherId: 'voucher-xml-force',
+		});
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const firstResponse = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/${voucherId}/xml`, {
+				issuedAt: '2026-04-12T12:00:00.000Z',
+			}),
+		);
+		const firstJson = (await firstResponse.json()) as {
+			data?: { artifactId: string | null; xmlHash: string | null };
+		};
+		const firstFiscalSnapshotHash = dbState.payrollCfdiXmlArtifacts[0]
+			?.fiscalSnapshotHash as string;
+		const voucher = dbState.payrollFiscalVouchers[0]?.voucher as Record<string, unknown>;
+		const receiver = voucher.receiver as Record<string, unknown>;
+		receiver.department = 'Finanzas';
+
+		const forceResponse = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/${voucherId}/xml`, {
+				issuedAt: '2026-04-12T12:00:00.000Z',
+				forceRegenerate: true,
+			}),
+		);
+		const forceJson = (await forceResponse.json()) as {
+			data?: { artifactId: string | null; xmlHash: string | null };
+		};
+
+		expect(firstResponse.status).toBe(200);
+		expect(forceResponse.status).toBe(200);
+		expect(forceJson.data?.artifactId).toBe(firstJson.data?.artifactId);
+		expect(forceJson.data?.xmlHash).not.toBe(firstJson.data?.xmlHash);
+		expect(dbState.payrollCfdiXmlArtifacts).toHaveLength(1);
+		expect(dbState.payrollCfdiXmlArtifacts[0]?.fiscalSnapshotHash).not.toBe(
+			firstFiscalSnapshotHash,
+		);
+		expect(dbState.payrollCfdiXmlArtifacts[0]?.xml).toContain('Departamento="Finanzas"');
+	});
+
+	it('returns the concurrently inserted XML artifact when idempotent generation races on the same snapshot hash', async () => {
+		const { runId, voucherId } = seedValidPayrollCfdiXmlScenario({
+			runId: 'processed-run-xml-race',
+			voucherId: 'voucher-xml-race',
+		});
+		dbState.pendingCfdiXmlArtifactRaceOnNextInsert = true;
+		dbState.pendingCfdiXmlArtifactRaceXmlHash = 'persisted-concurrent-xml-hash';
+		dbState.simulatePostgresAbortAfterCfdiXmlUniqueViolation = true;
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const response = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/${voucherId}/xml`, {
+				issuedAt: '2026-04-12T12:00:00.000Z',
+			}),
+		);
+		const json = (await response.json()) as {
+			data?: { artifactId: string | null; status: string; xmlHash: string | null };
+		};
+
+		expect(response.status).toBe(200);
+		expect(json.data?.artifactId).toBe('concurrent-cfdi-xml-artifact-1');
+		expect(json.data?.status).toBe('VALID');
+		expect(json.data?.xmlHash).toBe('persisted-concurrent-xml-hash');
+		expect(dbState.payrollCfdiXmlArtifacts[0]?.xmlHash).toBe('persisted-concurrent-xml-hash');
+		expect(dbState.payrollCfdiXmlArtifacts).toHaveLength(1);
+	});
+
+	it('force-regeneration reuses an existing target-hash artifact instead of updating another artifact into a duplicate key', async () => {
+		const { runId, voucherId } = seedValidPayrollCfdiXmlScenario({
+			runId: 'processed-run-xml-force-duplicate',
+			voucherId: 'voucher-xml-force-duplicate',
+		});
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const firstResponse = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/${voucherId}/xml`, {
+				issuedAt: '2026-04-12T12:00:00.000Z',
+			}),
+		);
+		const targetArtifact = dbState.payrollCfdiXmlArtifacts[0];
+		if (!targetArtifact) {
+			throw new Error('Expected initial XML artifact.');
+		}
+		dbState.payrollCfdiXmlArtifacts.push({
+			...targetArtifact,
+			id: 'newer-artifact-different-hash',
+			fiscalSnapshotHash: 'different-snapshot-hash',
+			xmlHash: 'different-xml-hash',
+			generatedAt: new Date('2026-04-12T13:00:00.000Z'),
+		});
+
+		const forceResponse = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/${voucherId}/xml`, {
+				issuedAt: '2026-04-12T12:00:00.000Z',
+				forceRegenerate: true,
+			}),
+		);
+		const json = (await forceResponse.json()) as {
+			data?: { artifactId: string | null; xmlHash: string | null };
+		};
+		const uniqueKeys = new Set(
+			dbState.payrollCfdiXmlArtifacts.map(
+				(artifact) =>
+					`${artifact.payrollFiscalVoucherId}:${artifact.artifactKind}:${artifact.fiscalSnapshotHash}`,
+			),
+		);
+
+		expect(firstResponse.status).toBe(200);
+		expect(forceResponse.status).toBe(200);
+		expect(json.data?.artifactId).toBe(targetArtifact.id as string);
+		expect(json.data?.xmlHash).toBe(targetArtifact.xmlHash as string);
+		expect(uniqueKeys.size).toBe(dbState.payrollCfdiXmlArtifacts.length);
+	});
+
+	it('blocks forced XML regeneration for stamped vouchers instead of reusing an existing artifact', async () => {
+		const { runId, voucherId } = seedValidPayrollCfdiXmlScenario({
+			runId: 'processed-run-xml-stamped-force',
+			voucherId: 'voucher-xml-stamped-force',
+		});
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const firstResponse = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/${voucherId}/xml`, {
+				issuedAt: '2026-04-12T12:00:00.000Z',
+			}),
+		);
+		const voucher = dbState.payrollFiscalVouchers[0];
+		if (!voucher) {
+			throw new Error('Expected seeded fiscal voucher.');
+		}
+		voucher.status = 'STAMPED';
+		voucher.uuid = 'stamped-uuid-1';
+		voucher.stampedAt = new Date('2026-04-12T13:00:00.000Z');
+
+		const forceResponse = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/${voucherId}/xml`, {
+				issuedAt: '2026-04-12T12:00:00.000Z',
+				forceRegenerate: true,
+			}),
+		);
+		const json = (await forceResponse.json()) as { error?: { message?: string } };
+
+		expect(firstResponse.status).toBe(200);
+		expect(forceResponse.status).toBe(409);
+		expect(json.error?.message).toBe('Stamped fiscal vouchers cannot regenerate XML artifacts');
+		expect(dbState.payrollCfdiXmlArtifacts).toHaveLength(1);
+	});
+
+	it('returns an existing XML artifact for stamped vouchers before applying readiness blocking', async () => {
+		const { runId, voucherId } = seedValidPayrollCfdiXmlScenario({
+			runId: 'processed-run-xml-stamped-idempotent',
+			voucherId: 'voucher-xml-stamped-idempotent',
+		});
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const firstResponse = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/${voucherId}/xml`, {
+				issuedAt: '2026-04-12T12:00:00.000Z',
+			}),
+		);
+		const firstJson = (await firstResponse.json()) as {
+			data?: { artifactId: string | null; xmlHash: string | null };
+		};
+		const voucher = dbState.payrollFiscalVouchers[0];
+		if (!voucher) {
+			throw new Error('Expected seeded fiscal voucher.');
+		}
+		voucher.status = 'STAMPED';
+		voucher.uuid = 'stamped-uuid-1';
+		voucher.stampedAt = new Date('2026-04-12T13:00:00.000Z');
+
+		const retryResponse = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/${voucherId}/xml`, {
+				issuedAt: '2026-04-12T12:00:00.000Z',
+			}),
+		);
+		const retryJson = (await retryResponse.json()) as {
+			data?: { artifactId: string | null; xmlHash: string | null; status: string };
+		};
+
+		expect(firstResponse.status).toBe(200);
+		expect(retryResponse.status).toBe(200);
+		expect(retryJson.data?.artifactId).toBe(firstJson.data?.artifactId);
+		expect(retryJson.data?.xmlHash).toBe(firstJson.data?.xmlHash);
+		expect(retryJson.data?.status).toBe('VALID');
+		expect(dbState.payrollCfdiXmlArtifacts).toHaveLength(1);
+	});
+
+	it('does not persist XML if a fiscal voucher is stamped before the artifact write', async () => {
+		const { runId, voucherId } = seedValidPayrollCfdiXmlScenario({
+			runId: 'processed-run-xml-stamp-race',
+			voucherId: 'voucher-xml-stamp-race',
+		});
+		dbState.pendingFiscalVoucherStampBeforeCfdiXmlWrite = true;
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const response = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/${voucherId}/xml`, {
+				issuedAt: '2026-04-12T12:00:00.000Z',
+			}),
+		);
+		const json = (await response.json()) as { error?: { message?: string } };
+
+		expect(response.status).toBe(409);
+		expect(json.error?.message).toBe('Stamped fiscal vouchers cannot regenerate XML artifacts');
+		expect(dbState.payrollCfdiXmlArtifacts).toHaveLength(0);
 	});
 
 	it('rejects fiscal voucher preparation for payroll runs that are not processed', async () => {

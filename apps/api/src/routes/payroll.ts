@@ -15,6 +15,7 @@ import {
 	member,
 	organization,
 	overtimeAuthorization,
+	payrollCfdiXmlArtifact,
 	payrollFiscalVoucher,
 	payrollRun,
 	payrollRunEmployee,
@@ -27,6 +28,8 @@ import { resolveOrganizationId } from '../utils/organization.js';
 import { roundCurrency } from '../utils/money.js';
 import {
 	payrollFiscalVoucherPrepareSchema,
+	payrollCfdiXmlGenerateSchema,
+	payrollCfdiXmlQuerySchema,
 	payrollCalculateSchema,
 	payrollProcessSchema,
 	payrollRunQuerySchema,
@@ -57,6 +60,15 @@ import {
 	type PayrollFiscalVoucherValidationIssue,
 	type PayrollFiscalVoucherValidationStatus,
 } from '../services/payroll-fiscal-vouchers.js';
+import {
+	buildBlockedPayrollCfdiArtifactSummary,
+	buildPayrollCfdiArtifactSummary,
+	buildPayrollCfdiXmlDownloadResponse,
+	buildPayrollCfdiXmlPersistencePayload,
+	computeFiscalSnapshotHash,
+	type PayrollCfdiXmlArtifactRow,
+	type PayrollFiscalVoucherArtifactSourceRow,
+} from '../services/payroll-cfdi-artifacts.js';
 import type {
 	PayrollEmployeeWithholdings,
 	PayrollInformationalLines,
@@ -839,6 +851,67 @@ function buildFiscalVoucherListPayload(rows: PayrollFiscalVoucherDbRow[]): {
 		statusSummary: summarizeFiscalVoucherStatuses(rows),
 		vouchers: rows,
 	};
+}
+
+/**
+ * Checks whether a fiscal voucher has already been stamped.
+ *
+ * @param voucher - Persisted fiscal voucher row
+ * @returns True when PAC/SAT stamping data is present
+ */
+function isStampedFiscalVoucher(voucher: PayrollFiscalVoucherDbRow): boolean {
+	return voucher.status === 'STAMPED' || Boolean(voucher.stampedAt) || Boolean(voucher.uuid);
+}
+
+/**
+ * Converts a persisted fiscal voucher route row to the artifact service source shape.
+ *
+ * @param voucher - Persisted fiscal voucher row
+ * @returns Artifact service source row
+ */
+function toArtifactSourceVoucher(
+	voucher: PayrollFiscalVoucherDbRow,
+): PayrollFiscalVoucherArtifactSourceRow {
+	return {
+		id: voucher.id,
+		payrollRunId: voucher.payrollRunId,
+		organizationId: voucher.organizationId,
+		employeeId: voucher.employeeId,
+		status: voucher.status,
+		uuid: voucher.uuid,
+		stampedAt: voucher.stampedAt,
+		voucher: voucher.voucher,
+	};
+}
+
+/**
+ * Picks the newest artifact from a list of persisted XML artifacts.
+ *
+ * @param rows - Candidate artifact rows
+ * @returns Newest artifact row or null
+ */
+function pickNewestPayrollCfdiArtifact(
+	rows: PayrollCfdiXmlArtifactRow[],
+): PayrollCfdiXmlArtifactRow | null {
+	return (
+		[...rows].sort(
+			(left, right) => right.generatedAt.getTime() - left.generatedAt.getTime(),
+		)[0] ?? null
+	);
+}
+
+/**
+ * Checks whether a database error represents a unique-constraint conflict.
+ *
+ * @param error - Unknown database error
+ * @returns True when the error is a PostgreSQL unique violation
+ */
+function isUniqueViolationError(error: unknown): boolean {
+	if (!error || typeof error !== 'object' || !('code' in error)) {
+		return false;
+	}
+
+	return (error as { code?: unknown }).code === '23505';
 }
 
 /**
@@ -2327,6 +2400,394 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 		},
 		{
 			body: payrollFiscalVoucherPrepareSchema,
+		},
+	)
+	/**
+	 * Generate and persist an unstamped CFDI payroll XML artifact for a fiscal voucher.
+	 */
+	.post(
+		'/runs/:id/fiscal-vouchers/:voucherId/xml',
+		async ({
+			params,
+			body,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+			set,
+		}) => {
+			const { id: runId, voucherId } = params;
+			const runRows = await db
+				.select()
+				.from(payrollRun)
+				.where(eq(payrollRun.id, runId))
+				.limit(1);
+			const run = runRows[0];
+
+			if (!run) {
+				set.status = 404;
+				return buildErrorResponse('Payroll run not found', 404);
+			}
+
+			const organizationId = resolveOrganizationId({
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: run.organizationId,
+			});
+
+			if (!organizationId || organizationId !== run.organizationId) {
+				set.status = 404;
+				return buildErrorResponse('Payroll run not found', 404);
+			}
+
+			const canAccessFiscalVouchers = await canViewDualPayrollCompensation({
+				authType,
+				organizationId: run.organizationId,
+				session: session ?? null,
+			});
+			if (!canAccessFiscalVouchers) {
+				set.status = 403;
+				return buildErrorResponse('You do not have access to payroll fiscal vouchers', 403);
+			}
+
+			const voucherRows = (await db
+				.select()
+				.from(payrollFiscalVoucher)
+				.where(
+					and(
+						eq(payrollFiscalVoucher.payrollRunId, runId),
+						eq(payrollFiscalVoucher.id, voucherId),
+						eq(payrollFiscalVoucher.organizationId, run.organizationId),
+					),
+				)) as PayrollFiscalVoucherDbRow[];
+			const voucher = voucherRows[0] ?? null;
+
+			if (!voucher) {
+				set.status = 404;
+				return buildErrorResponse('Fiscal voucher not found', 404);
+			}
+
+			if (body.forceRegenerate && isStampedFiscalVoucher(voucher)) {
+				set.status = 409;
+				return buildErrorResponse(
+					'Stamped fiscal vouchers cannot regenerate XML artifacts',
+					409,
+				);
+			}
+
+			const issuedAt = body.issuedAt ? new Date(body.issuedAt) : new Date();
+			const sourceVoucher = toArtifactSourceVoucher(voucher);
+			const snapshotHash = computeFiscalSnapshotHash(sourceVoucher.voucher);
+			const existingArtifacts = (await db
+				.select()
+				.from(payrollCfdiXmlArtifact)
+				.where(
+					and(
+						eq(payrollCfdiXmlArtifact.payrollFiscalVoucherId, voucherId),
+						eq(payrollCfdiXmlArtifact.artifactKind, 'XML_WITHOUT_SEAL'),
+					),
+				)) as PayrollCfdiXmlArtifactRow[];
+			const existingSameHash =
+				existingArtifacts.find(
+					(artifact) => artifact.fiscalSnapshotHash === snapshotHash,
+				) ?? null;
+			const existingLatest = pickNewestPayrollCfdiArtifact(existingArtifacts);
+
+			if (isStampedFiscalVoucher(voucher)) {
+				if (existingSameHash) {
+					return {
+						data: buildPayrollCfdiArtifactSummary({
+							voucherId,
+							artifact: existingSameHash,
+							status:
+								existingSameHash.validationErrors.length > 0 ? 'BLOCKED' : 'VALID',
+							warnings: [],
+						}),
+					};
+				}
+
+				set.status = 409;
+				return buildErrorResponse(
+					'Stamped fiscal vouchers cannot regenerate XML artifacts',
+					409,
+				);
+			}
+
+			const voucherValidationErrors = Array.isArray(voucher.validationErrors)
+				? voucher.validationErrors
+				: [];
+			const voucherValidationWarnings = Array.isArray(voucher.validationWarnings)
+				? voucher.validationWarnings
+				: [];
+			if (voucher.status !== 'READY_TO_STAMP' || voucherValidationErrors.length > 0) {
+				set.status = 422;
+				return {
+					data: buildBlockedPayrollCfdiArtifactSummary({
+						voucherId,
+						errors:
+							voucherValidationErrors.length > 0
+								? voucherValidationErrors
+								: [
+										{
+											code: 'XML_FISCAL_VOUCHER_NOT_READY',
+											field: 'status',
+											message:
+												'Fiscal voucher must be READY_TO_STAMP before XML generation.',
+										},
+									],
+						warnings: voucherValidationWarnings,
+					}),
+				};
+			}
+
+			if (existingSameHash && !body.forceRegenerate) {
+				return {
+					data: buildPayrollCfdiArtifactSummary({
+						voucherId,
+						artifact: existingSameHash,
+						status: existingSameHash.validationErrors.length > 0 ? 'BLOCKED' : 'VALID',
+						warnings: [],
+					}),
+				};
+			}
+
+			const payload = buildPayrollCfdiXmlPersistencePayload({
+				voucherRow: sourceVoucher,
+				issuedAt,
+			});
+			if (payload.status === 'BLOCKED' || !payload.artifact) {
+				set.status = 422;
+				return { data: payload.summary };
+			}
+			const artifactPayload = payload.artifact;
+
+			/**
+			 * Reloads the artifact matching the XML generated for this request.
+			 *
+			 * @returns Persisted artifact with the generated fiscal snapshot hash, if present
+			 */
+			const findArtifactByGeneratedHash = async (
+				databaseClient: Pick<typeof db, 'select'> = db,
+			): Promise<PayrollCfdiXmlArtifactRow | null> => {
+				const artifactsAfterConflict = (await databaseClient
+					.select()
+					.from(payrollCfdiXmlArtifact)
+					.where(
+						and(
+							eq(payrollCfdiXmlArtifact.payrollFiscalVoucherId, voucherId),
+							eq(payrollCfdiXmlArtifact.artifactKind, 'XML_WITHOUT_SEAL'),
+						),
+					)) as PayrollCfdiXmlArtifactRow[];
+				return (
+					artifactsAfterConflict.find(
+						(artifact) =>
+							artifact.fiscalSnapshotHash === payload.artifact?.fiscalSnapshotHash,
+					) ?? null
+				);
+			};
+
+			const existingArtifactToReplace = body.forceRegenerate
+				? (existingSameHash ?? existingLatest)
+				: existingSameHash;
+			let persistResult: {
+				status: 'STAMPED_OR_NOT_READY' | 'PERSISTED';
+				artifactId: string | null;
+				artifactAfterUniqueConflict: PayrollCfdiXmlArtifactRow | null;
+			};
+			try {
+				persistResult = await db.transaction(async (tx) => {
+					const writeDb = tx as unknown as Pick<
+						typeof db,
+						'insert' | 'select' | 'update'
+					>;
+					const guardedVoucherRows = await writeDb
+						.update(payrollFiscalVoucher)
+						.set({ updatedAt: voucher.updatedAt })
+						.where(
+							and(
+								eq(payrollFiscalVoucher.id, voucherId),
+								eq(payrollFiscalVoucher.payrollRunId, runId),
+								eq(payrollFiscalVoucher.organizationId, run.organizationId),
+								eq(payrollFiscalVoucher.status, 'READY_TO_STAMP'),
+								isNull(payrollFiscalVoucher.uuid),
+								isNull(payrollFiscalVoucher.stampedAt),
+							),
+						)
+						.returning({ id: payrollFiscalVoucher.id });
+					if (guardedVoucherRows.length === 0) {
+						return {
+							status: 'STAMPED_OR_NOT_READY' as const,
+							artifactId: null,
+							artifactAfterUniqueConflict: null,
+						};
+					}
+
+					const artifactId = existingArtifactToReplace?.id ?? crypto.randomUUID();
+					if (existingArtifactToReplace) {
+						await writeDb
+							.update(payrollCfdiXmlArtifact)
+							.set({
+								fiscalSnapshotHash: artifactPayload.fiscalSnapshotHash,
+								xmlHash: artifactPayload.xmlHash,
+								xml: artifactPayload.xml,
+								fiscalArtifactManifest: artifactPayload.fiscalArtifactManifest,
+								validationErrors: artifactPayload.validationErrors,
+								generatedAt: artifactPayload.generatedAt,
+							})
+							.where(eq(payrollCfdiXmlArtifact.id, artifactId));
+					} else {
+						await writeDb.insert(payrollCfdiXmlArtifact).values({
+							id: artifactId,
+							...artifactPayload,
+						});
+					}
+
+					return {
+						status: 'PERSISTED' as const,
+						artifactId,
+						artifactAfterUniqueConflict: null,
+					};
+				});
+			} catch (error) {
+				if (!isUniqueViolationError(error)) {
+					throw error;
+				}
+				const artifactAfterConflict = await findArtifactByGeneratedHash(db);
+				if (!artifactAfterConflict) {
+					throw error;
+				}
+				persistResult = {
+					status: 'PERSISTED',
+					artifactId: artifactAfterConflict.id,
+					artifactAfterUniqueConflict: artifactAfterConflict,
+				};
+			}
+
+			if (persistResult.status === 'STAMPED_OR_NOT_READY') {
+				set.status = 409;
+				return buildErrorResponse(
+					'Stamped fiscal vouchers cannot regenerate XML artifacts',
+					409,
+				);
+			}
+
+			if (persistResult.artifactAfterUniqueConflict) {
+				return {
+					data: buildPayrollCfdiArtifactSummary({
+						voucherId,
+						artifact: persistResult.artifactAfterUniqueConflict,
+						status:
+							persistResult.artifactAfterUniqueConflict.validationErrors.length > 0
+								? 'BLOCKED'
+								: 'VALID',
+						warnings: [],
+					}),
+				};
+			}
+
+			return {
+				data: {
+					...payload.summary,
+					artifactId: persistResult.artifactId,
+				},
+			};
+		},
+		{
+			body: payrollCfdiXmlGenerateSchema,
+		},
+	)
+	/**
+	 * Download a generated CFDI payroll XML artifact for a fiscal voucher.
+	 */
+	.get(
+		'/runs/:id/fiscal-vouchers/:voucherId/xml',
+		async ({
+			params,
+			query,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+			set,
+		}) => {
+			const { id: runId, voucherId } = params;
+			const runRows = await db
+				.select()
+				.from(payrollRun)
+				.where(eq(payrollRun.id, runId))
+				.limit(1);
+			const run = runRows[0];
+
+			if (!run) {
+				set.status = 404;
+				return buildErrorResponse('Payroll run not found', 404);
+			}
+
+			const organizationId = resolveOrganizationId({
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: run.organizationId,
+			});
+
+			if (!organizationId || organizationId !== run.organizationId) {
+				set.status = 404;
+				return buildErrorResponse('Payroll run not found', 404);
+			}
+
+			const canAccessFiscalVouchers = await canViewDualPayrollCompensation({
+				authType,
+				organizationId: run.organizationId,
+				session: session ?? null,
+			});
+			if (!canAccessFiscalVouchers) {
+				set.status = 403;
+				return buildErrorResponse('You do not have access to payroll fiscal vouchers', 403);
+			}
+
+			const voucherRows = (await db
+				.select()
+				.from(payrollFiscalVoucher)
+				.where(
+					and(
+						eq(payrollFiscalVoucher.payrollRunId, runId),
+						eq(payrollFiscalVoucher.id, voucherId),
+						eq(payrollFiscalVoucher.organizationId, run.organizationId),
+					),
+				)) as PayrollFiscalVoucherDbRow[];
+			const voucher = voucherRows[0] ?? null;
+
+			if (!voucher) {
+				set.status = 404;
+				return buildErrorResponse('Fiscal voucher not found', 404);
+			}
+
+			const artifactRows = (await db
+				.select()
+				.from(payrollCfdiXmlArtifact)
+				.where(
+					and(
+						eq(payrollCfdiXmlArtifact.payrollFiscalVoucherId, voucherId),
+						eq(payrollCfdiXmlArtifact.artifactKind, query.kind),
+					),
+				)) as PayrollCfdiXmlArtifactRow[];
+			const artifact = pickNewestPayrollCfdiArtifact(artifactRows);
+			if (!artifact) {
+				set.status = 404;
+				return buildErrorResponse('Payroll CFDI XML artifact not found', 404);
+			}
+
+			return buildPayrollCfdiXmlDownloadResponse({ voucherId, artifact });
+		},
+		{
+			query: payrollCfdiXmlQuerySchema,
 		},
 	)
 	/**

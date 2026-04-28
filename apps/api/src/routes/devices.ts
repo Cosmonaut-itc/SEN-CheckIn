@@ -1,18 +1,30 @@
 import { type SQL, and, eq, ilike, or } from 'drizzle-orm';
 import { Elysia, t } from 'elysia';
 import crypto from 'node:crypto';
+import { promisify } from 'node:util';
 
 import db from '../db/index.js';
-import { device, location, organization } from '../db/schema.js';
-import { combinedAuthPlugin } from '../plugins/auth.js';
+import {
+	device,
+	deviceSettingsPinOverride,
+	location,
+	member,
+	organization,
+	organizationDeviceSettingsPinConfig,
+} from '../db/schema.js';
+import { combinedAuthPlugin, type AuthSession, type AuthUser } from '../plugins/auth.js';
 import { buildErrorResponse } from '../utils/error-response.js';
 import {
 	createDeviceSchema,
 	deviceHeartbeatSchema,
+	deviceSettingsPinConfigQuerySchema,
 	deviceQuerySchema,
 	idParamSchema,
 	registerDeviceSchema,
+	updateDeviceSettingsPinConfigSchema,
+	updateDeviceSettingsPinOverrideSchema,
 	updateDeviceSchema,
+	verifyDeviceSettingsPinSchema,
 } from '../schemas/crud.js';
 import { hasOrganizationAccess, resolveOrganizationId } from '../utils/organization.js';
 
@@ -22,6 +34,514 @@ import { hasOrganizationAccess, resolveOrganizationId } from '../utils/organizat
  *
  * @module routes/devices
  */
+
+const SETTINGS_PIN_HASH_PREFIX = 'scrypt:v1';
+const SETTINGS_PIN_SALT_BYTES = 16;
+const SETTINGS_PIN_KEY_LENGTH = 32;
+const SETTINGS_PIN_VERIFY_FAILED_ATTEMPT_LIMIT = 5;
+const SETTINGS_PIN_VERIFY_WINDOW_MS = 10 * 60 * 1000;
+const SETTINGS_PIN_VERIFY_FAILURE_BUCKET_LIMIT = 10_000;
+const scryptAsync = promisify(crypto.scrypt);
+
+type DeviceSettingsPinMode = 'GLOBAL' | 'PER_DEVICE';
+type DeviceSettingsPinSource = 'GLOBAL' | 'DEVICE' | 'NONE';
+type DeviceSettingsPinListStatus = 'OWN_PIN' | 'USES_GLOBAL' | 'NOT_CONFIGURED';
+type DeviceRecord = typeof device.$inferSelect;
+type DeviceSettingsPinConfigRecord =
+	typeof organizationDeviceSettingsPinConfig.$inferSelect;
+type SettingsPinVerifyFailure = {
+	failedAttempts: number;
+	firstFailedAtMs: number;
+};
+
+const settingsPinVerifyFailures = new Map<string, SettingsPinVerifyFailure>();
+
+/**
+ * Hashes a four-digit settings PIN using scrypt.
+ *
+ * @param pin - Plain settings PIN that already passed policy validation
+ * @returns Encoded scrypt hash with salt
+ */
+async function hashSettingsPin(pin: string): Promise<string> {
+	const salt = crypto.randomBytes(SETTINGS_PIN_SALT_BYTES).toString('hex');
+	const derivedKey = (await scryptAsync(pin, salt, SETTINGS_PIN_KEY_LENGTH)) as Buffer;
+	return `${SETTINGS_PIN_HASH_PREFIX}:${salt}:${derivedKey.toString('hex')}`;
+}
+
+/**
+ * Verifies a settings PIN against an encoded scrypt hash.
+ *
+ * @param pin - Plain PIN supplied by the caller
+ * @param encodedHash - Encoded scrypt hash from storage
+ * @returns True when the PIN matches the stored hash
+ */
+async function verifySettingsPin(pin: string, encodedHash: string): Promise<boolean> {
+	const [algorithm, version, salt, digest] = encodedHash.split(':');
+	if (`${algorithm}:${version}` !== SETTINGS_PIN_HASH_PREFIX || !salt || !digest) {
+		return false;
+	}
+
+	const expected = Buffer.from(digest, 'hex');
+	const actual = (await scryptAsync(pin, salt, expected.length)) as Buffer;
+	if (actual.length !== expected.length) {
+		return false;
+	}
+
+	return crypto.timingSafeEqual(actual, expected);
+}
+
+/**
+ * Removes expired settings PIN verification failure buckets and caps memory use.
+ *
+ * @param nowMs - Current timestamp in milliseconds
+ * @returns Nothing
+ */
+function pruneSettingsPinVerifyFailures(nowMs: number): void {
+	settingsPinVerifyFailures.forEach((failure, key) => {
+		if (nowMs - failure.firstFailedAtMs >= SETTINGS_PIN_VERIFY_WINDOW_MS) {
+			settingsPinVerifyFailures.delete(key);
+		}
+	});
+
+	if (settingsPinVerifyFailures.size <= SETTINGS_PIN_VERIFY_FAILURE_BUCKET_LIMIT) {
+		return;
+	}
+
+	const sortedEntries = Array.from(settingsPinVerifyFailures.entries()).sort(
+		([, left], [, right]) => left.firstFailedAtMs - right.firstFailedAtMs,
+	);
+	const entriesToDelete = sortedEntries.length - SETTINGS_PIN_VERIFY_FAILURE_BUCKET_LIMIT;
+	for (let index = 0; index < entriesToDelete; index += 1) {
+		const [key] = sortedEntries[index]!;
+		settingsPinVerifyFailures.delete(key);
+	}
+}
+
+/**
+ * Builds the failed-attempt key for online settings PIN verification.
+ *
+ * @param args - Device, actor, and request context
+ * @returns Rate limit key
+ */
+function buildSettingsPinVerifyFailureKey(args: {
+	pinScope: string;
+	authType: 'session' | 'apiKey';
+	session: AuthSession | null;
+	apiKeyId: string | null;
+}): string {
+	const actor =
+		args.authType === 'session'
+			? `session:${args.session?.userId ?? 'unknown'}`
+			: `api-key:${args.apiKeyId ?? 'unknown'}`;
+	return `${args.pinScope}:${actor}`;
+}
+
+/**
+ * Returns current lockout state for failed settings PIN attempts.
+ *
+ * @param key - Failed-attempt key
+ * @param nowMs - Current timestamp in milliseconds
+ * @returns Lockout status and retry delay
+ */
+function getSettingsPinVerifyLockout(
+	key: string,
+	nowMs: number,
+): { locked: boolean; retryAfterSeconds: number } {
+	pruneSettingsPinVerifyFailures(nowMs);
+	const failure = settingsPinVerifyFailures.get(key);
+	if (!failure) {
+		return { locked: false, retryAfterSeconds: 0 };
+	}
+
+	const elapsedMs = nowMs - failure.firstFailedAtMs;
+	if (elapsedMs >= SETTINGS_PIN_VERIFY_WINDOW_MS) {
+		settingsPinVerifyFailures.delete(key);
+		return { locked: false, retryAfterSeconds: 0 };
+	}
+
+	if (failure.failedAttempts < SETTINGS_PIN_VERIFY_FAILED_ATTEMPT_LIMIT) {
+		return { locked: false, retryAfterSeconds: 0 };
+	}
+
+	return {
+		locked: true,
+		retryAfterSeconds: Math.ceil((SETTINGS_PIN_VERIFY_WINDOW_MS - elapsedMs) / 1000),
+	};
+}
+
+/**
+ * Records a failed settings PIN verification attempt.
+ *
+ * @param key - Failed-attempt key
+ * @param nowMs - Current timestamp in milliseconds
+ * @returns Nothing
+ */
+function recordSettingsPinVerifyFailure(key: string, nowMs: number): void {
+	pruneSettingsPinVerifyFailures(nowMs);
+	const failure = settingsPinVerifyFailures.get(key);
+	if (!failure || nowMs - failure.firstFailedAtMs >= SETTINGS_PIN_VERIFY_WINDOW_MS) {
+		settingsPinVerifyFailures.set(key, {
+			failedAttempts: 1,
+			firstFailedAtMs: nowMs,
+		});
+		pruneSettingsPinVerifyFailures(nowMs);
+		return;
+	}
+
+	settingsPinVerifyFailures.set(key, {
+		...failure,
+		failedAttempts: failure.failedAttempts + 1,
+	});
+	pruneSettingsPinVerifyFailures(nowMs);
+}
+
+/**
+ * Clears failed settings PIN attempts for a lockout scope.
+ *
+ * @param pinScope - Effective PIN lockout scope
+ * @returns Nothing
+ */
+function clearSettingsPinVerifyFailuresForScope(pinScope: string): void {
+	const keyPrefix = `${pinScope}:`;
+	settingsPinVerifyFailures.forEach((_failure, key) => {
+		if (key.startsWith(keyPrefix)) {
+			settingsPinVerifyFailures.delete(key);
+		}
+	});
+}
+
+/**
+ * Checks whether a session caller can manage settings PIN policy.
+ *
+ * @param args - Auth and organization context
+ * @returns True when caller is a platform admin or organization owner/admin
+ */
+async function canManageSettingsPin(args: {
+	authType: 'session' | 'apiKey';
+	session: AuthSession | null;
+	user: AuthUser | null;
+	organizationId: string;
+}): Promise<boolean> {
+	if (args.authType !== 'session' || !args.session) {
+		return false;
+	}
+
+	if (args.user?.role === 'admin') {
+		return true;
+	}
+
+	const membershipRows = await db
+		.select({ role: member.role })
+		.from(member)
+		.where(
+			and(
+				eq(member.userId, args.session.userId),
+				eq(member.organizationId, args.organizationId),
+			),
+		)
+		.limit(1);
+	const role = membershipRows[0]?.role ?? null;
+	return role === 'owner' || role === 'admin';
+}
+
+/**
+ * Resolves the target organization for settings PIN config reads/writes.
+ * Platform admins may target any existing organization explicitly, while
+ * ordinary sessions and API keys remain constrained by membership/key scope.
+ *
+ * @param args - Auth context and requested organization
+ * @returns Organization identifier when permitted, otherwise null
+ */
+async function resolveSettingsPinConfigOrganization(args: {
+	authType: 'session' | 'apiKey';
+	session: AuthSession | null;
+	user: AuthUser | null;
+	sessionOrganizationIds: string[];
+	apiKeyOrganizationId: string | null;
+	apiKeyOrganizationIds: string[];
+	requestedOrganizationId: string | null;
+}): Promise<string | null> {
+	if (
+		args.authType === 'session' &&
+		args.user?.role === 'admin' &&
+		args.requestedOrganizationId
+	) {
+		const organizationRows = await db
+			.select({ id: organization.id })
+			.from(organization)
+			.where(eq(organization.id, args.requestedOrganizationId))
+			.limit(1);
+		return organizationRows[0]?.id ?? null;
+	}
+
+	if (args.authType === 'session' && args.requestedOrganizationId) {
+		return args.sessionOrganizationIds.includes(args.requestedOrganizationId)
+			? args.requestedOrganizationId
+			: null;
+	}
+
+	return resolveOrganizationId({
+		authType: args.authType,
+		session: args.session,
+		sessionOrganizationIds: args.sessionOrganizationIds,
+		apiKeyOrganizationId: args.apiKeyOrganizationId,
+		apiKeyOrganizationIds: args.apiKeyOrganizationIds,
+		requestedOrganizationId: args.requestedOrganizationId,
+	});
+}
+
+/**
+ * Loads the organization settings PIN config, returning defaults when absent.
+ *
+ * @param organizationId - Organization identifier
+ * @returns Effective configuration record without creating database rows
+ */
+async function getSettingsPinConfig(organizationId: string): Promise<{
+	mode: DeviceSettingsPinMode;
+	globalPinHash: string | null;
+	existing: DeviceSettingsPinConfigRecord | null;
+}> {
+	const rows = await db
+		.select()
+		.from(organizationDeviceSettingsPinConfig)
+		.where(eq(organizationDeviceSettingsPinConfig.organizationId, organizationId))
+		.limit(1);
+	const existing = rows[0] ?? null;
+	return {
+		mode: existing?.mode ?? 'GLOBAL',
+		globalPinHash: existing?.globalPinHash ?? null,
+		existing,
+	};
+}
+
+/**
+ * Builds per-device status fields for API-safe responses.
+ *
+ * @param args - Mode and configured PIN state
+ * @returns API-safe settings PIN status metadata
+ */
+function buildDeviceSettingsPinStatus(args: {
+	mode: DeviceSettingsPinMode;
+	globalPinConfigured: boolean;
+	overrideConfigured: boolean;
+}): {
+	pinRequired: boolean;
+	pinSource: DeviceSettingsPinSource;
+	listStatus: DeviceSettingsPinListStatus;
+} {
+	const pinSource: DeviceSettingsPinSource =
+		args.mode === 'GLOBAL'
+			? args.globalPinConfigured
+				? 'GLOBAL'
+				: 'NONE'
+			: args.overrideConfigured
+				? 'DEVICE'
+				: args.globalPinConfigured
+					? 'GLOBAL'
+					: 'NONE';
+
+	return {
+		pinRequired: pinSource !== 'NONE',
+		pinSource,
+		listStatus:
+			pinSource === 'DEVICE'
+				? 'OWN_PIN'
+				: pinSource === 'GLOBAL'
+					? 'USES_GLOBAL'
+					: 'NOT_CONFIGURED',
+	};
+}
+
+/**
+ * Builds an API-safe organization settings PIN config payload.
+ *
+ * @param organizationId - Organization identifier
+ * @returns Config payload without hashes
+ */
+async function buildSettingsPinConfigPayload(organizationId: string): Promise<{
+	mode: DeviceSettingsPinMode;
+	globalPinConfigured: boolean;
+	devices: Array<{
+		id: string;
+		code: string;
+		name: string | null;
+		deviceStatus: DeviceRecord['status'];
+		overrideConfigured: boolean;
+		pinRequired: boolean;
+		pinSource: DeviceSettingsPinSource;
+		status: DeviceSettingsPinListStatus;
+	}>;
+}> {
+	const config = await getSettingsPinConfig(organizationId);
+	const globalPinConfigured = Boolean(config.globalPinHash);
+	const deviceRows = await db
+		.select({
+			id: device.id,
+			code: device.code,
+			name: device.name,
+			status: device.status,
+		})
+		.from(device)
+		.where(eq(device.organizationId, organizationId))
+		.orderBy(device.name, device.code);
+	const overrideRows = await db
+		.select({ deviceId: deviceSettingsPinOverride.deviceId })
+		.from(deviceSettingsPinOverride)
+		.where(eq(deviceSettingsPinOverride.organizationId, organizationId));
+	const overrideDeviceIds = new Set(overrideRows.map((row) => row.deviceId));
+
+	return {
+		mode: config.mode,
+		globalPinConfigured,
+		devices: deviceRows.map((row) => {
+			const overrideConfigured = overrideDeviceIds.has(row.id);
+			const status = buildDeviceSettingsPinStatus({
+				mode: config.mode,
+				globalPinConfigured,
+				overrideConfigured,
+			});
+			return {
+				id: row.id,
+				code: row.code,
+				name: row.name,
+				deviceStatus: row.status,
+				overrideConfigured,
+				pinRequired: status.pinRequired,
+				pinSource: status.pinSource,
+				status: status.listStatus,
+			};
+		}),
+	};
+}
+
+/**
+ * Loads a device and checks caller access.
+ *
+ * @param args - Auth context and target device ID
+ * @returns Device row when accessible, otherwise an error response descriptor
+ */
+async function loadAccessibleDevice(args: {
+	id: string;
+	authType: 'session' | 'apiKey';
+	session: AuthSession | null;
+	sessionOrganizationIds: string[];
+	apiKeyOrganizationIds: string[];
+}): Promise<
+	| { ok: true; record: DeviceRecord }
+	| { ok: false; status: 403 | 404; message: string; code?: string }
+> {
+	const rows = await db.select().from(device).where(eq(device.id, args.id)).limit(1);
+	const record = rows[0] ?? null;
+	if (!record) {
+		return { ok: false, status: 404, message: 'Device not found', code: 'DEVICE_NOT_FOUND' };
+	}
+
+	if (
+		!hasOrganizationAccess(
+			args.authType,
+			args.session,
+			args.sessionOrganizationIds,
+			args.apiKeyOrganizationIds,
+			record.organizationId,
+		)
+	) {
+		return { ok: false, status: 403, message: 'You do not have access to this device' };
+	}
+
+	return { ok: true, record };
+}
+
+/**
+ * Builds API-safe settings PIN status for a device.
+ *
+ * @param record - Device record
+ * @returns Device settings PIN status payload without hashes
+ */
+async function buildDeviceSettingsPinStatusPayload(record: DeviceRecord): Promise<{
+	deviceId: string;
+	mode: DeviceSettingsPinMode;
+	pinRequired: boolean;
+	source: DeviceSettingsPinSource;
+	globalPinConfigured: boolean;
+	deviceOverrideConfigured: boolean;
+}> {
+	const organizationId = record.organizationId;
+	if (!organizationId) {
+		return {
+			deviceId: record.id,
+			mode: 'GLOBAL',
+			pinRequired: false,
+			source: 'NONE',
+			globalPinConfigured: false,
+			deviceOverrideConfigured: false,
+		};
+	}
+
+	const config = await getSettingsPinConfig(organizationId);
+	const overrideRows = await db
+		.select({ pinHash: deviceSettingsPinOverride.pinHash })
+		.from(deviceSettingsPinOverride)
+		.where(eq(deviceSettingsPinOverride.deviceId, record.id))
+		.limit(1);
+	const deviceOverrideConfigured = Boolean(overrideRows[0]?.pinHash);
+	const globalPinConfigured = Boolean(config.globalPinHash);
+	const status = buildDeviceSettingsPinStatus({
+		mode: config.mode,
+		globalPinConfigured,
+		overrideConfigured: deviceOverrideConfigured,
+	});
+
+	return {
+		deviceId: record.id,
+		mode: config.mode,
+		pinRequired: status.pinRequired,
+		source: status.pinSource,
+		globalPinConfigured,
+		deviceOverrideConfigured,
+	};
+}
+
+/**
+ * Resolves the effective PIN hash for a device according to current policy.
+ *
+ * @param record - Device record
+ * @returns Effective hash and status metadata
+ */
+async function resolveEffectiveSettingsPin(record: DeviceRecord): Promise<{
+	pinHash: string | null;
+	lockoutScope: string | null;
+	status: Awaited<ReturnType<typeof buildDeviceSettingsPinStatusPayload>>;
+}> {
+	const organizationId = record.organizationId;
+	if (!organizationId) {
+		return {
+			pinHash: null,
+			lockoutScope: null,
+			status: await buildDeviceSettingsPinStatusPayload(record),
+		};
+	}
+
+	const config = await getSettingsPinConfig(organizationId);
+	const overrideRows = await db
+		.select({ pinHash: deviceSettingsPinOverride.pinHash })
+		.from(deviceSettingsPinOverride)
+		.where(eq(deviceSettingsPinOverride.deviceId, record.id))
+		.limit(1);
+	const overrideHash = overrideRows[0]?.pinHash ?? null;
+	const usesDeviceOverride = config.mode === 'PER_DEVICE' && Boolean(overrideHash);
+	const pinHash = usesDeviceOverride ? overrideHash : config.globalPinHash;
+	const lockoutScope = pinHash
+		? usesDeviceOverride
+			? `device:${record.id}:settings-pin`
+			: `organization:${organizationId}:settings-pin:global`
+		: null;
+
+	return {
+		pinHash,
+		lockoutScope,
+		status: await buildDeviceSettingsPinStatusPayload(record),
+	};
+}
 
 /**
  * Device routes plugin for Elysia.
@@ -88,6 +608,374 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 			query: t.Object({
 				organizationId: t.Optional(t.String()),
 			}),
+		},
+	)
+	/**
+	 * Returns settings PIN configuration and per-device status metadata.
+	 *
+	 * @route GET /devices/settings-pin-config
+	 * @returns Organization settings PIN config without hashes
+	 */
+	.get(
+		'/settings-pin-config',
+		async ({
+			query,
+			authType,
+			user,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+			set,
+		}) => {
+			const organizationId = await resolveSettingsPinConfigOrganization({
+				authType,
+				session,
+				user,
+				sessionOrganizationIds,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: query.organizationId ?? null,
+			});
+
+			if (!organizationId) {
+				const status = authType === 'apiKey' || query.organizationId ? 403 : 400;
+				set.status = status;
+				return buildErrorResponse('Organization is required or not permitted', status);
+			}
+
+			return {
+				data: await buildSettingsPinConfigPayload(organizationId),
+			};
+		},
+		{
+			query: deviceSettingsPinConfigQuerySchema,
+		},
+	)
+	/**
+	 * Updates organization settings PIN policy.
+	 *
+	 * @route PUT /devices/settings-pin-config
+	 * @returns Updated organization settings PIN config without hashes
+	 */
+	.put(
+		'/settings-pin-config',
+		async ({
+			body,
+			authType,
+			user,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+			set,
+		}) => {
+			const organizationId = await resolveSettingsPinConfigOrganization({
+				authType,
+				session,
+				user,
+				sessionOrganizationIds,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: body.organizationId ?? null,
+			});
+
+			if (!organizationId) {
+				const status = authType === 'apiKey' || body.organizationId ? 403 : 400;
+				set.status = status;
+				return buildErrorResponse('Organization is required or not permitted', status);
+			}
+
+			const canManage = await canManageSettingsPin({
+				authType,
+				session,
+				user,
+				organizationId,
+			});
+			if (!canManage) {
+				set.status = 403;
+				return buildErrorResponse(
+					'Only owner/admin can manage device settings PIN',
+					403,
+				);
+			}
+
+			const config = await getSettingsPinConfig(organizationId);
+			const globalPinHash =
+				body.globalPin === undefined
+					? config.globalPinHash
+					: body.globalPin === null
+						? null
+						: await hashSettingsPin(body.globalPin);
+			const now = new Date();
+
+			if (config.existing) {
+				await db
+					.update(organizationDeviceSettingsPinConfig)
+					.set({
+						mode: body.mode,
+						globalPinHash,
+						updatedAt: now,
+					})
+					.where(
+						eq(
+							organizationDeviceSettingsPinConfig.organizationId,
+							organizationId,
+						),
+					);
+			} else {
+				await db.insert(organizationDeviceSettingsPinConfig).values({
+					organizationId,
+					mode: body.mode,
+					globalPinHash,
+					createdAt: now,
+					updatedAt: now,
+				});
+			}
+
+			clearSettingsPinVerifyFailuresForScope(
+				`organization:${organizationId}:settings-pin:global`,
+			);
+
+			return {
+				data: await buildSettingsPinConfigPayload(organizationId),
+			};
+		},
+		{
+			body: updateDeviceSettingsPinConfigSchema,
+		},
+	)
+	/**
+	 * Updates or clears a device settings PIN override.
+	 *
+	 * @route PUT /devices/:id/settings-pin
+	 * @returns Device settings PIN status without hashes
+	 */
+	.put(
+		'/:id/settings-pin',
+		async ({
+			params,
+			body,
+			authType,
+			user,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationIds,
+			set,
+		}) => {
+			const loaded = await loadAccessibleDevice({
+				id: params.id,
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationIds,
+			});
+
+			if (!loaded.ok) {
+				set.status = loaded.status;
+				return buildErrorResponse(
+					loaded.message,
+					loaded.status,
+					loaded.code ? { code: loaded.code } : undefined,
+				);
+			}
+
+			const organizationId = loaded.record.organizationId;
+			if (!organizationId) {
+				set.status = 403;
+				return buildErrorResponse('Organization is required or not permitted', 403);
+			}
+
+			const canManage = await canManageSettingsPin({
+				authType,
+				session,
+				user,
+				organizationId,
+			});
+			if (!canManage) {
+				set.status = 403;
+				return buildErrorResponse(
+					'Only owner/admin can manage device settings PIN',
+					403,
+				);
+			}
+
+			if (body.pin === null) {
+				await db
+					.delete(deviceSettingsPinOverride)
+					.where(eq(deviceSettingsPinOverride.deviceId, loaded.record.id));
+			} else {
+				const pinHash = await hashSettingsPin(body.pin);
+				const now = new Date();
+				const existing = await db
+					.select({ deviceId: deviceSettingsPinOverride.deviceId })
+					.from(deviceSettingsPinOverride)
+					.where(eq(deviceSettingsPinOverride.deviceId, loaded.record.id))
+					.limit(1);
+
+				if (existing[0]) {
+					await db
+						.update(deviceSettingsPinOverride)
+						.set({
+							pinHash,
+							organizationId,
+							updatedAt: now,
+						})
+						.where(eq(deviceSettingsPinOverride.deviceId, loaded.record.id));
+				} else {
+					await db.insert(deviceSettingsPinOverride).values({
+						deviceId: loaded.record.id,
+						organizationId,
+						pinHash,
+						createdAt: now,
+						updatedAt: now,
+					});
+				}
+			}
+
+			clearSettingsPinVerifyFailuresForScope(
+				`device:${loaded.record.id}:settings-pin`,
+			);
+
+			return {
+				data: await buildDeviceSettingsPinStatusPayload(loaded.record),
+			};
+		},
+		{
+			params: idParamSchema,
+			body: updateDeviceSettingsPinOverrideSchema,
+		},
+	)
+	/**
+	 * Returns the effective settings PIN status for a device.
+	 *
+	 * @route GET /devices/:id/settings-pin-status
+	 * @returns Device settings PIN status without hashes
+	 */
+	.get(
+		'/:id/settings-pin-status',
+		async ({
+			params,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationIds,
+			set,
+		}) => {
+			const loaded = await loadAccessibleDevice({
+				id: params.id,
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationIds,
+			});
+
+			if (!loaded.ok) {
+				set.status = loaded.status;
+				return buildErrorResponse(
+					loaded.message,
+					loaded.status,
+					loaded.code ? { code: loaded.code } : undefined,
+				);
+			}
+
+			return {
+				data: await buildDeviceSettingsPinStatusPayload(loaded.record),
+			};
+		},
+		{
+			params: idParamSchema,
+		},
+	)
+	/**
+	 * Verifies a device settings PIN online.
+	 *
+	 * @route POST /devices/:id/settings-pin-verify
+	 * @returns Boolean validation result only
+	 */
+	.post(
+		'/:id/settings-pin-verify',
+		async ({
+			params,
+			body,
+			authType,
+			apiKeyId,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationIds,
+			set,
+		}) => {
+			const loaded = await loadAccessibleDevice({
+				id: params.id,
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationIds,
+			});
+
+			if (!loaded.ok) {
+				set.status = loaded.status;
+				return buildErrorResponse(
+					loaded.message,
+					loaded.status,
+					loaded.code ? { code: loaded.code } : undefined,
+				);
+			}
+
+			const effectivePin = await resolveEffectiveSettingsPin(loaded.record);
+			if (!effectivePin.pinHash) {
+				return {
+					data: {
+						valid: true,
+					},
+				};
+			}
+
+			const pinScope = effectivePin.lockoutScope;
+			if (!pinScope) {
+				set.status = 500;
+				return buildErrorResponse('Settings PIN lockout scope unavailable', 500);
+			}
+
+			const failureKey = buildSettingsPinVerifyFailureKey({
+				pinScope,
+				authType,
+				session,
+				apiKeyId,
+			});
+			const nowMs = Date.now();
+			const lockout = getSettingsPinVerifyLockout(failureKey, nowMs);
+			if (lockout.locked) {
+				set.status = 429;
+				set.headers['retry-after'] = String(lockout.retryAfterSeconds);
+				return buildErrorResponse('Too many invalid PIN attempts', 429, {
+					code: 'RATE_LIMITED',
+					details: {
+						retryAfterSeconds: lockout.retryAfterSeconds,
+					},
+				});
+			}
+
+			const valid = await verifySettingsPin(body.pin, effectivePin.pinHash);
+			if (valid) {
+				settingsPinVerifyFailures.delete(failureKey);
+				return {
+					data: {
+						valid,
+					},
+				};
+			}
+
+			recordSettingsPinVerifyFailure(failureKey, nowMs);
+			return {
+				data: {
+					valid,
+				},
+			};
+		},
+		{
+			params: idParamSchema,
+			body: verifyDeviceSettingsPinSchema,
 		},
 	)
 	/**

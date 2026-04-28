@@ -359,6 +359,48 @@ export const deviceHeartbeatSchema = z
 	})
 	.default({});
 
+/**
+ * Valid device settings PIN modes.
+ */
+export const deviceSettingsPinModeEnum = z.enum(['GLOBAL', 'PER_DEVICE']);
+
+/**
+ * Validates the checker device settings PIN policy.
+ */
+export const settingsPinSchema = z
+	.string()
+	.regex(/^\d{4}$/, 'PIN must be exactly four numeric digits');
+
+/**
+ * Schema for reading device settings PIN configuration.
+ */
+export const deviceSettingsPinConfigQuerySchema = z.object({
+	organizationId: z.string().optional(),
+});
+
+/**
+ * Schema for updating organization settings PIN configuration.
+ */
+export const updateDeviceSettingsPinConfigSchema = z.object({
+	mode: deviceSettingsPinModeEnum,
+	globalPin: settingsPinSchema.nullable().optional(),
+	organizationId: z.string().optional(),
+});
+
+/**
+ * Schema for updating a per-device settings PIN override.
+ */
+export const updateDeviceSettingsPinOverrideSchema = z.object({
+	pin: settingsPinSchema.nullable(),
+});
+
+/**
+ * Schema for verifying a device settings PIN online.
+ */
+export const verifyDeviceSettingsPinSchema = z.object({
+	pin: settingsPinSchema,
+});
+
 // ============================================================================
 // Organization Member Schemas
 // ============================================================================
@@ -553,6 +595,17 @@ export type CreateDeviceInput = z.infer<typeof createDeviceSchema>;
 export type UpdateDeviceInput = z.infer<typeof updateDeviceSchema>;
 export type DeviceQuery = z.infer<typeof deviceQuerySchema>;
 export type RegisterDeviceInput = z.infer<typeof registerDeviceSchema>;
+export type DeviceSettingsPinMode = z.infer<typeof deviceSettingsPinModeEnum>;
+export type DeviceSettingsPinConfigQuery = z.infer<
+	typeof deviceSettingsPinConfigQuerySchema
+>;
+export type UpdateDeviceSettingsPinConfigInput = z.infer<
+	typeof updateDeviceSettingsPinConfigSchema
+>;
+export type UpdateDeviceSettingsPinOverrideInput = z.infer<
+	typeof updateDeviceSettingsPinOverrideSchema
+>;
+export type VerifyDeviceSettingsPinInput = z.infer<typeof verifyDeviceSettingsPinSchema>;
 
 // Organization Members
 export type OrganizationMembersQuery = z.infer<typeof organizationMembersQuerySchema>;

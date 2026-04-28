@@ -79,6 +79,7 @@
 		"vacations": "Vacaciones",
 		"incapacities": "Incapacidades IMSS",
 		"payroll": "Nómina",
+		"fiscalCfdi": "CFDI Nómina",
 		"disciplinaryMeasures": "Medidas disciplinarias",
 		"resources": "Recursos",
 		"apiKeys": "Claves de API",
@@ -96,6 +97,64 @@
 		"toggleSidebar": "Alternar Barra Lateral",
 		"overtimeAuthorizations": "Autorización de horas extra",
 		"deductions": "Descuentos"
+	},
+	"FiscalCfdi": {
+		"title": "CFDI Nómina",
+		"subtitle": "Administra los datos maestros fiscales y revisa el preflight antes de preparar vouchers fiscales.",
+		"actions": {
+			"load": "Cargar",
+			"save": "Guardar",
+			"prepare": "Preparar vouchers fiscales"
+		},
+		"messages": {
+			"loaded": "Datos cargados.",
+			"saved": "Datos guardados.",
+			"prepared": "Vouchers fiscales preparados.",
+			"loadError": "No se pudieron cargar los datos.",
+			"saveError": "No se pudieron guardar los datos.",
+			"prepareError": "No se pudieron preparar los vouchers fiscales."
+		},
+		"organization": {
+			"title": "Configuración fiscal de la organización",
+			"description": "Datos del emisor CFDI y metadata no sensible para CSD/PAC.",
+			"fields": {
+				"legalName": "Nombre SAT",
+				"rfc": "RFC",
+				"fiscalRegimeCode": "Régimen fiscal",
+				"expeditionPostalCode": "Lugar de expedición",
+				"employerRegistrationNumber": "Registro patronal",
+				"payrollCfdiSeries": "Serie CFDI Nómina",
+				"csdCertificateSerial": "Serie de certificado CSD",
+				"pacProvider": "PAC"
+			}
+		},
+		"employee": {
+			"title": "Datos fiscales del empleado",
+			"description": "Captura los datos requeridos para el receptor y el complemento Nómina.",
+			"employeeId": "ID de empleado",
+			"fields": {
+				"satName": "Nombre SAT",
+				"rfc": "RFC",
+				"curp": "CURP",
+				"socialSecurityNumber": "NSS",
+				"fiscalPostalCode": "CP fiscal",
+				"contractTypeCode": "Tipo contrato",
+				"workdayTypeCode": "Tipo jornada",
+				"payrollRegimeTypeCode": "Tipo régimen nómina",
+				"employmentStartDateKey": "Inicio relación laboral",
+				"paymentFrequencyCode": "Periodicidad",
+				"riskPositionCode": "Riesgo puesto",
+				"salaryBaseContribution": "SBC",
+				"integratedDailySalary": "SDI",
+				"federalEntityCode": "Entidad federativa"
+			}
+		},
+		"preflight": {
+			"title": "Preflight CFDI por corrida",
+			"description": "Revisa errores por empleado y bloqueos antes de preparar vouchers.",
+			"payrollRunId": "ID de corrida de nómina",
+			"summary": "{ready} empleados listos · {blocked} bloqueados"
+		}
 	},
 	"AccessRestricted": {
 		"title": "Acceso restringido",

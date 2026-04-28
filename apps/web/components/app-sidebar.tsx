@@ -30,6 +30,7 @@ import {
 	CalendarDays,
 	Clock3,
 	HandCoins,
+	FileCheck2,
 	FileText,
 	Gift,
 	Settings2,
@@ -151,6 +152,11 @@ const adminNavItems: NavItem[] = [
 		titleKey: 'payrollSettings',
 		href: '/payroll-settings',
 		icon: Settings2,
+	},
+	{
+		titleKey: 'fiscalCfdi',
+		href: '/fiscal-cfdi',
+		icon: FileCheck2,
 	},
 	{
 		titleKey: 'overtimeAuthorizations',

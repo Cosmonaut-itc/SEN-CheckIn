@@ -779,6 +779,14 @@ function validateDeductions(
 	deductions: PayrollCfdiDeductionLine[],
 	errors: PayrollCfdiValidationIssue[],
 ): void {
+	if (
+		deductions.length > 0 &&
+		deductions.every((line) => Number.isFinite(line.amount)) &&
+		sumMoney(deductions.map((line) => line.amount)) <= 0
+	) {
+		errors.push(createIssue('XML_TOTALS_MISMATCH', 'deductions'));
+	}
+
 	for (const [index, line] of deductions.entries()) {
 		const field = `deductions.${index}`;
 

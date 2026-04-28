@@ -4,6 +4,7 @@ import {
 	buildPayrollCfdiArtifactSummary,
 	buildPayrollCfdiXmlDownloadResponse,
 	buildPayrollCfdiXmlPersistencePayload,
+	computeFiscalSnapshotHash,
 	mapFiscalVoucherToPayrollCfdiBuildInput,
 	type PayrollCfdiXmlArtifactRow,
 	type PayrollFiscalVoucherArtifactSourceRow,
@@ -153,6 +154,27 @@ describe('payroll CFDI XML artifacts', () => {
 			exerciseYear: 2024,
 			generatedAt: '2025-01-01T04:00:00.000Z',
 		});
+	});
+
+	it('computes fiscal snapshot hashes directly from voucher payloads', () => {
+		const row = buildVoucherRow();
+		const earlyIssuedAt = new Date('2026-04-12T12:00:00.000Z');
+		const laterIssuedAt = new Date('2026-04-13T12:00:00.000Z');
+
+		const directHash = computeFiscalSnapshotHash(row.voucher);
+
+		expect(directHash).toBe(
+			mapFiscalVoucherToPayrollCfdiBuildInput({
+				voucherRow: row,
+				issuedAt: earlyIssuedAt,
+			}).fiscalSnapshotHash,
+		);
+		expect(directHash).toBe(
+			mapFiscalVoucherToPayrollCfdiBuildInput({
+				voucherRow: row,
+				issuedAt: laterIssuedAt,
+			}).fiscalSnapshotHash,
+		);
 	});
 
 	it('returns a blocked persistence payload with validation errors and no artifact XML when Phase 3 fields are missing', () => {

@@ -65,7 +65,7 @@ import {
 	buildPayrollCfdiArtifactSummary,
 	buildPayrollCfdiXmlDownloadResponse,
 	buildPayrollCfdiXmlPersistencePayload,
-	mapFiscalVoucherToPayrollCfdiBuildInput,
+	computeFiscalSnapshotHash,
 	type PayrollCfdiXmlArtifactRow,
 	type PayrollFiscalVoucherArtifactSourceRow,
 } from '../services/payroll-cfdi-artifacts.js';
@@ -2481,10 +2481,7 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 
 			const issuedAt = body.issuedAt ? new Date(body.issuedAt) : new Date();
 			const sourceVoucher = toArtifactSourceVoucher(voucher);
-			const snapshotHash = mapFiscalVoucherToPayrollCfdiBuildInput({
-				voucherRow: sourceVoucher,
-				issuedAt,
-			}).fiscalSnapshotHash;
+			const snapshotHash = computeFiscalSnapshotHash(sourceVoucher.voucher);
 			const existingArtifacts = (await db
 				.select()
 				.from(payrollCfdiXmlArtifact)

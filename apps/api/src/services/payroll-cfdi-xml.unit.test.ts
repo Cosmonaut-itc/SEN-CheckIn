@@ -596,6 +596,22 @@ describe('payroll CFDI XML validation', () => {
 				'XML_TOTALS_MISMATCH',
 			],
 			[
+				'zero-amount deduction total',
+				buildWeeklyInput({
+					deductions: [
+						{
+							internalType: 'ISR',
+							internalCode: 'ISR',
+							satTypeCode: '002',
+							employerCode: '101',
+							conceptLabel: 'ISR',
+							amount: 0,
+						},
+					],
+				}),
+				'XML_TOTALS_MISMATCH',
+			],
+			[
 				'malformed payment date key',
 				buildWeeklyInput({ payroll: { paymentDateKey: '2026/04/18' } }),
 				'XML_PAYMENT_DATE_REQUIRED',

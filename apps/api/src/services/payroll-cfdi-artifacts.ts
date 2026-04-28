@@ -87,7 +87,7 @@ export function mapFiscalVoucherToPayrollCfdiBuildInput(args: {
 
 	const input: PayrollCfdiBuildInput = {
 		voucherId: args.voucherRow.id,
-		fiscalSnapshotHash: hashStableJson(voucher),
+		fiscalSnapshotHash: computeFiscalSnapshotHash(voucher),
 		issuedAt: args.issuedAt,
 		fiscalArtifactManifest: buildDefaultFiscalArtifactManifest(args.issuedAt),
 		issuer: {
@@ -165,6 +165,16 @@ export function mapFiscalVoucherToPayrollCfdiBuildInput(args: {
 	}
 
 	return input;
+}
+
+/**
+ * Computes the deterministic hash for a persisted fiscal voucher snapshot.
+ *
+ * @param voucher - Fiscal voucher snapshot payload
+ * @returns Stable SHA-256 hash for the snapshot
+ */
+export function computeFiscalSnapshotHash(voucher: Record<string, unknown>): string {
+	return hashStableJson(voucher);
 }
 
 /**

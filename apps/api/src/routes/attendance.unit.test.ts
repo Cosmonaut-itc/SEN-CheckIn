@@ -273,4 +273,57 @@ describe('attendance dashboard routes', () => {
 		expect(payload.data).toHaveLength(24);
 		expect(payload.data.every((row) => row.count === 0)).toBe(true);
 	});
+
+	it('allows multi-org api keys to disambiguate organization on staffing coverage requests', async () => {
+		dbState.selectResults = [[{ timeZone: 'America/Mexico_City' }], [], [], [], [], []];
+
+		const { attendanceRoutes } = await import('./attendance.js');
+		const response = await attendanceRoutes.handle(
+			createGetRequest(
+				'/attendance/staffing-coverage?organizationId=org-2&date=2026-04-20',
+			),
+		);
+
+		expect(response.status).toBe(200);
+		expect(resolveOrganizationIdCalls.at(-1)?.requestedOrganizationId).toBe('org-2');
+		const payload = (await response.json()) as {
+			dateKey: string;
+			data: unknown[];
+		};
+		expect(payload.dateKey).toBe('2026-04-20');
+		expect(payload.data).toEqual([]);
+	});
+
+	it('rejects multi-org api key staffing coverage requests without organization disambiguation', async () => {
+		const { attendanceRoutes } = await import('./attendance.js');
+		const response = await attendanceRoutes.handle(
+			createGetRequest('/attendance/staffing-coverage?date=2026-04-20'),
+		);
+
+		expect(response.status).toBe(403);
+		expect(resolveOrganizationIdCalls.at(-1)?.requestedOrganizationId).toBeNull();
+		const payload = (await response.json()) as { error: { message: string } };
+		expect(payload.error.message).toBe('Organization is required or not permitted');
+	});
+
+	it('allows multi-org api keys to disambiguate organization on staffing coverage stats requests', async () => {
+		dbState.selectResults = [[{ timeZone: 'America/Mexico_City' }], [], [], [], [], []];
+
+		const { attendanceRoutes } = await import('./attendance.js');
+		const response = await attendanceRoutes.handle(
+			createGetRequest('/attendance/staffing-coverage/stats?organizationId=org-1&days=2'),
+		);
+
+		expect(response.status).toBe(200);
+		expect(resolveOrganizationIdCalls.at(-1)?.requestedOrganizationId).toBe('org-1');
+		const payload = (await response.json()) as {
+			data: unknown[];
+			summary: { days: number; requirementsEvaluated: number };
+		};
+		expect(payload.data).toEqual([]);
+		expect(payload.summary).toMatchObject({
+			days: 2,
+			requirementsEvaluated: 0,
+		});
+	});
 });

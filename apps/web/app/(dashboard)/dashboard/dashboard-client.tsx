@@ -375,7 +375,7 @@ function StaffingCoveragePanel({
 							{t('staffingCoverage.summary.average30d')}
 						</p>
 						<p className="text-lg font-semibold">
-							{formatCoveragePercent(summary.averageCoveragePercent30d)}
+							{formatCoveragePercent(summary.averageCoveragePercent)}
 						</p>
 					</div>
 				</div>
@@ -731,7 +731,7 @@ export function DashboardPageClient(): React.ReactElement {
 		requirementsEvaluated: 0,
 		completeToday: 0,
 		incompleteToday: 0,
-		averageCoveragePercent30d: 0,
+		averageCoveragePercent: 0,
 		days: 30,
 	};
 	const isStaffingCoveragePanelLoading =

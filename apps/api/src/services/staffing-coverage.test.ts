@@ -406,7 +406,7 @@ describe('staffing coverage calculations', () => {
 			requirementsEvaluated: 1,
 			completeToday: 0,
 			incompleteToday: 1,
-			averageCoveragePercent30d: 75,
+			averageCoveragePercent: 75,
 			days: 2,
 		});
 	});

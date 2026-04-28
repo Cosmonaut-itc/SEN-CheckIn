@@ -2732,7 +2732,7 @@ export async function fetchAttendanceStaffingCoverageStats(
 				requirementsEvaluated: 0,
 				completeToday: 0,
 				incompleteToday: 0,
-				averageCoveragePercent30d: 0,
+				averageCoveragePercent: 0,
 				days: params.days ?? 30,
 			},
 		};
@@ -2768,7 +2768,7 @@ export async function fetchAttendanceStaffingCoverageStats(
 			requirementsEvaluated: 0,
 			completeToday: 0,
 			incompleteToday: 0,
-			averageCoveragePercent30d: 0,
+			averageCoveragePercent: 0,
 			days: params?.days ?? 30,
 		},
 	};

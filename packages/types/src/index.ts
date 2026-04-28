@@ -453,7 +453,7 @@ export interface StaffingCoverageStatsSummary {
 	/** Requirements incomplete on the current evaluated day */
 	incompleteToday: number;
 	/** Average coverage percentage for the requested window */
-	averageCoveragePercent30d: number;
+	averageCoveragePercent: number;
 	/** Requested window length in days */
 	days: number;
 }

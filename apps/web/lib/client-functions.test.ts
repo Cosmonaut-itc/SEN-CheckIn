@@ -347,7 +347,7 @@ function createStaffingCoverageStatsFixture(
 			requirementsEvaluated: 1,
 			completeToday: 0,
 			incompleteToday: 1,
-			averageCoveragePercent30d: 87.5,
+			averageCoveragePercent: 87.5,
 			days: 30,
 		},
 		...overrides,
@@ -891,7 +891,7 @@ describe('dashboard v2 client functions', () => {
 				requirementsEvaluated: 0,
 				completeToday: 0,
 				incompleteToday: 0,
-				averageCoveragePercent30d: 0,
+				averageCoveragePercent: 0,
 				days: 14,
 			},
 		});

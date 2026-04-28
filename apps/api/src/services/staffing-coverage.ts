@@ -113,7 +113,7 @@ export interface StaffingCoverageStatsResult {
 		requirementsEvaluated: number;
 		completeToday: number;
 		incompleteToday: number;
-		averageCoveragePercent30d: number;
+		averageCoveragePercent: number;
 		days: number;
 	};
 }
@@ -491,6 +491,33 @@ function average(values: number[]): number {
 }
 
 /**
+ * Builds a zero-coverage stats item when a daily result is missing a requirement row.
+ *
+ * @param requirement - Scoped staffing requirement
+ * @returns Empty daily coverage item for resilient stats aggregation
+ */
+function buildEmptyDailyCoverageItem(
+	requirement: StaffingCoverageRequirementRow,
+): StaffingCoverageDailyItem {
+	const minimumRequired = requirement.minimumRequired ?? 0;
+
+	return {
+		requirementId: requirement.id,
+		locationId: requirement.locationId,
+		locationName: requirement.locationName,
+		jobPositionId: requirement.jobPositionId,
+		jobPositionName: requirement.jobPositionName,
+		minimumRequired,
+		scheduledCount: 0,
+		arrivedCount: 0,
+		missingCount: minimumRequired,
+		coveragePercent: calculateCoveragePercent(0, minimumRequired),
+		isComplete: minimumRequired === 0,
+		employees: [],
+	};
+}
+
+/**
  * Calculates staffing coverage statistics for an inclusive date window.
  *
  * @param input - Coverage source rows, filters, and date-window options
@@ -512,18 +539,29 @@ export function calculateStaffingCoverageStats(
 			dateKey,
 		}),
 	);
+	const dailyItemsByRequirement = new Map<
+		string,
+		Array<{ dateKey: string; item: StaffingCoverageDailyItem }>
+	>();
+
+	for (const requirement of scopedRequirements) {
+		dailyItemsByRequirement.set(
+			requirement.id,
+			dailyResults.map((dailyResult) => {
+				const item =
+					dailyResult.items.find((candidate) => candidate.requirementId === requirement.id) ??
+					buildEmptyDailyCoverageItem(requirement);
+
+				return {
+					dateKey: dailyResult.dateKey,
+					item,
+				};
+			}),
+		);
+	}
 
 	const items = scopedRequirements.map((requirement) => {
-		const dailyItems = dailyResults.map((dailyResult) => {
-			const item = dailyResult.items.find((candidate) => candidate.requirementId === requirement.id);
-			if (!item) {
-				throw new Error(`Missing daily coverage item for requirement ${requirement.id}.`);
-			}
-			return {
-				dateKey: dailyResult.dateKey,
-				item,
-			};
-		});
+		const dailyItems = dailyItemsByRequirement.get(requirement.id) ?? [];
 		const coverageValues = dailyItems.map(({ item }) => item.coveragePercent);
 		const incompleteItems = dailyItems.filter(({ item }) => !item.isComplete);
 		let currentStreakIncompleteDays = 0;
@@ -552,9 +590,12 @@ export function calculateStaffingCoverageStats(
 		} satisfies StaffingCoverageStatsItem;
 	});
 
-	const todayItems = dailyResults.at(-1)?.items ?? [];
-	const allCoverageValues = dailyResults.flatMap((dailyResult) =>
-		dailyResult.items.map((item) => item.coveragePercent),
+	const todayItems = scopedRequirements.flatMap((requirement) => {
+		const latestDailyItem = dailyItemsByRequirement.get(requirement.id)?.at(-1);
+		return latestDailyItem ? [latestDailyItem.item] : [];
+	});
+	const allCoverageValues = Array.from(dailyItemsByRequirement.values()).flatMap((dailyItems) =>
+		dailyItems.map(({ item }) => item.coveragePercent),
 	);
 
 	return {
@@ -563,7 +604,7 @@ export function calculateStaffingCoverageStats(
 			requirementsEvaluated: scopedRequirements.length,
 			completeToday: todayItems.filter((item) => item.isComplete).length,
 			incompleteToday: todayItems.filter((item) => !item.isComplete).length,
-			averageCoveragePercent30d: average(allCoverageValues),
+			averageCoveragePercent: average(allCoverageValues),
 			days: input.days,
 		},
 	};

@@ -159,6 +159,7 @@ export interface PersistedPayrollRunSource {
 	status: string;
 	periodStart: Date;
 	periodEnd: Date;
+	paymentDate?: Date | null;
 }
 
 export interface PersistedPayrollRunEmployeeSource extends PersistedPayrollConceptSource {
@@ -171,8 +172,7 @@ export interface PersistedPayrollEmployeeSource {
 	lastName: string;
 }
 
-export interface PersistedEmployeeFiscalProfileSource
-	extends PayrollFiscalEmployeeProfileInput {
+export interface PersistedEmployeeFiscalProfileSource extends PayrollFiscalEmployeeProfileInput {
 	employeeId: string;
 }
 
@@ -192,6 +192,7 @@ export interface PayrollFiscalPreflightDataProvider {
 	loadPayrollFiscalPreflightData(args: {
 		organizationId: string;
 		payrollRunId: string;
+		paymentDateKey?: string | null;
 	}): Promise<PersistedPayrollFiscalPreflightData>;
 }
 
@@ -437,12 +438,14 @@ export function evaluatePayrollFiscalPreflight(
  * Loads persisted payroll fiscal preflight data and evaluates it.
  *
  * @param args - Organization and payroll run identifiers
+ * @param args.paymentDateKey - Optional effective payment date override
  * @returns Fiscal preflight result for the persisted run
  * @throws Error when the database query fails
  */
 export async function buildPayrollFiscalPreflight(args: {
 	organizationId: string;
 	payrollRunId: string;
+	paymentDateKey?: string | null;
 }): Promise<PayrollFiscalPreflightResult> {
 	const provider = payrollFiscalPreflightDataProviderForTest ?? {
 		loadPayrollFiscalPreflightData: loadPersistedPayrollFiscalPreflightData,
@@ -580,6 +583,7 @@ function buildPayrollFiscalPreflightInputFromPersistedData(
 	args: {
 		organizationId: string;
 		payrollRunId: string;
+		paymentDateKey?: string | null;
 	},
 	persistedData: PersistedPayrollFiscalPreflightData,
 ): PayrollFiscalPreflightInput {
@@ -599,7 +603,12 @@ function buildPayrollFiscalPreflightInputFromPersistedData(
 					status: persistedData.payrollRun.status,
 					periodStartDateKey: toDateKey(persistedData.payrollRun.periodStart),
 					periodEndDateKey: toDateKey(persistedData.payrollRun.periodEnd),
-					paymentDateKey: toDateKey(persistedData.payrollRun.periodEnd),
+					paymentDateKey:
+						args.paymentDateKey ??
+						toDateKey(
+							persistedData.payrollRun.paymentDate ??
+								persistedData.payrollRun.periodEnd,
+						),
 					runType: 'ORDINARY',
 					concepts: extractPersistedPayrollConcepts(
 						scopedRunEmployees.map((row) => row.line),
@@ -784,7 +793,7 @@ function validateOrganizationProfile(
 	) {
 		issues.push(
 			createIssue(
-				'ORG_EXPEDITION_POSTAL_CODE_REQUIRED',
+				'ORG_EXPEDITION_POSTAL_CODE_INVALID',
 				'organizationProfile.expeditionPostalCode',
 				'Organization expedition postal code format is invalid.',
 				'ORGANIZATION',
@@ -1093,6 +1102,16 @@ function validateEmployeeProfile(
 		'employeeFiscalProfile.cfdiUseCode',
 		warnings,
 	);
+	if (hasText(profile.cfdiUseCode) && profile.cfdiUseCode !== 'CN01') {
+		issues.push(
+			createIssue(
+				'EMPLOYEE_CFDI_USE_UNSUPPORTED',
+				'employeeFiscalProfile.cfdiUseCode',
+				'Employee CFDI use must be CN01 for payroll CFDI.',
+				'EMPLOYEE',
+			),
+		);
+	}
 	validateCatalogField(
 		input,
 		issues,

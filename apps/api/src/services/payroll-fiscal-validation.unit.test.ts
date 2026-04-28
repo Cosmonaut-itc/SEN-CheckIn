@@ -503,6 +503,69 @@ describe('payroll fiscal preflight database adapter', () => {
 		);
 	});
 
+	it('uses the persisted payment date for database-backed catalog checks when available', async () => {
+		const provider: PayrollFiscalPreflightDataProvider = {
+			async loadPayrollFiscalPreflightData() {
+				return {
+					payrollRun: {
+						id: 'run-weekly-1',
+						organizationId: 'org-1',
+						paymentFrequency: 'WEEKLY',
+						status: 'PROCESSED',
+						periodStart: new Date('2026-04-13T00:00:00.000Z'),
+						periodEnd: new Date('2026-04-19T00:00:00.000Z'),
+						paymentDate: new Date('2026-04-21T00:00:00.000Z'),
+					},
+					runEmployees: [
+						{
+							line: {
+								employeeId: 'emp-1',
+								totalPay: '5000.00',
+								fiscalGrossPay: null,
+								overtimeDoublePay: '0.00',
+								overtimeTriplePay: '0.00',
+								sundayPremiumAmount: '0.00',
+								mandatoryRestDayPremiumAmount: '0.00',
+								vacationPayAmount: '0.00',
+								vacationPremiumAmount: '0.00',
+								deductionsBreakdown: [],
+								taxBreakdown: null,
+							},
+							employee: {
+								id: 'emp-1',
+								firstName: 'Persona',
+								lastName: 'Uno',
+							},
+						},
+					],
+					organizationProfile: completeOrganizationProfile,
+					employeeProfiles: [
+						{
+							employeeId: 'emp-1',
+							...completeEmployeeFiscalProfile,
+						},
+					],
+					catalogEntries: completeCatalogEntries.map((entry) => ({
+						...entry,
+						validTo: '2026-04-19',
+					})),
+					conceptMappings: completeConceptMappings,
+				};
+			},
+		};
+		setPayrollFiscalPreflightDataProviderForTest(provider);
+
+		const result = await buildPayrollFiscalPreflight({
+			organizationId: 'org-1',
+			payrollRunId: 'run-weekly-1',
+		});
+
+		expect(result.canPrepareFiscalVouchers).toBe(false);
+		expect(result.organizationIssues.map((issue) => issue.code)).toContain(
+			'CATALOG_CODE_INVALID',
+		);
+	});
+
 	it('does not expose employee rows when the scoped run is missing', async () => {
 		const provider: PayrollFiscalPreflightDataProvider = {
 			async loadPayrollFiscalPreflightData() {
@@ -575,6 +638,29 @@ describe('payroll fiscal preflight evaluation', () => {
 		);
 	});
 
+	it('distinguishes invalid organization expedition postal code format from a missing value', () => {
+		const result = evaluatePayrollFiscalPreflight({
+			...completePreflightInput,
+			organizationProfile: {
+				...completeOrganizationProfile,
+				expeditionPostalCode: '6400A',
+			},
+		});
+
+		expect(result.canPrepareFiscalVouchers).toBe(false);
+		expect(result.organizationIssues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					code: 'ORG_EXPEDITION_POSTAL_CODE_INVALID',
+					field: 'organizationProfile.expeditionPostalCode',
+				}),
+			]),
+		);
+		expect(result.organizationIssues.map((issue) => issue.code)).not.toContain(
+			'ORG_EXPEDITION_POSTAL_CODE_REQUIRED',
+		);
+	});
+
 	it('blocks employees when their fiscal profile is incomplete', () => {
 		const result = evaluatePayrollFiscalPreflight({
 			...completePreflightInput,
@@ -635,6 +721,43 @@ describe('payroll fiscal preflight evaluation', () => {
 				}),
 				expect.objectContaining({
 					code: 'EMPLOYEE_CFDI_USE_REQUIRED',
+					field: 'employeeFiscalProfile.cfdiUseCode',
+				}),
+			]),
+		);
+	});
+
+	it('blocks employees when CFDI use is not CN01', () => {
+		const result = evaluatePayrollFiscalPreflight({
+			...completePreflightInput,
+			catalogEntries: [
+				...completeCatalogEntries,
+				{
+					catalogName: 'c_UsoCFDI',
+					code: 'G03',
+					validFrom: '2022-01-01',
+					validTo: null,
+					isActive: true,
+				},
+			],
+			employees: [
+				{
+					employeeId: 'emp-1',
+					displayName: 'Persona Uno',
+					fiscalProfile: {
+						...completeEmployeeFiscalProfile,
+						cfdiUseCode: 'G03',
+					},
+				},
+			],
+		});
+
+		const [employee] = result.employeeResults;
+		expect(result.canPrepareFiscalVouchers).toBe(false);
+		expect(employee?.issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					code: 'EMPLOYEE_CFDI_USE_UNSUPPORTED',
 					field: 'employeeFiscalProfile.cfdiUseCode',
 				}),
 			]),

@@ -84,4 +84,74 @@ describe('payroll fiscal route authorization helpers', () => {
 		expect(incomplete.status).toBe('INCOMPLETE');
 		expect(complete.status).toBe('COMPLETE');
 	});
+
+	it('preserves omitted organization fiscal fields during partial updates', () => {
+		const {
+			buildOrganizationFiscalProfileInsertPayload,
+			buildOrganizationFiscalProfileUpdateSet,
+		} = routeHelpers;
+		const now = new Date('2026-04-28T00:00:00.000Z');
+
+		const insertPayload = buildOrganizationFiscalProfileInsertPayload({
+			organizationId: 'org-1',
+			body: {
+				legalName: 'Acme SA de CV',
+			},
+			updatedAt: now,
+		});
+		const updateSet = buildOrganizationFiscalProfileUpdateSet(
+			{
+				legalName: 'Acme Servicios SA de CV',
+			},
+			now,
+		);
+
+		expect(insertPayload).toMatchObject({
+			organizationId: 'org-1',
+			legalName: 'Acme SA de CV',
+			rfc: '',
+			payrollStampingMode: 'PER_RUN',
+		});
+		expect(updateSet).toEqual({
+			legalName: 'Acme Servicios SA de CV',
+			updatedAt: now,
+		});
+		expect(updateSet).not.toHaveProperty('rfc');
+		expect(updateSet).not.toHaveProperty('csdSecretRef');
+	});
+
+	it('preserves omitted employee fiscal fields during partial updates', () => {
+		const { buildEmployeeFiscalProfileInsertPayload, buildEmployeeFiscalProfileUpdateSet } =
+			routeHelpers;
+		const now = new Date('2026-04-28T00:00:00.000Z');
+
+		const insertPayload = buildEmployeeFiscalProfileInsertPayload({
+			employeeId: 'emp-1',
+			organizationId: 'org-1',
+			body: {
+				satName: 'PERSONA UNO',
+			},
+			updatedAt: now,
+		});
+		const updateSet = buildEmployeeFiscalProfileUpdateSet(
+			{
+				position: 'Analista fiscal',
+			},
+			now,
+		);
+
+		expect(insertPayload).toMatchObject({
+			employeeId: 'emp-1',
+			organizationId: 'org-1',
+			satName: 'PERSONA UNO',
+			employeeNumber: '',
+			cfdiUseCode: 'CN01',
+		});
+		expect(updateSet).toEqual({
+			position: 'Analista fiscal',
+			updatedAt: now,
+		});
+		expect(updateSet).not.toHaveProperty('employeeNumber');
+		expect(updateSet).not.toHaveProperty('bankAccount');
+	});
 });

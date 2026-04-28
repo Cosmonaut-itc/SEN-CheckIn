@@ -3,13 +3,15 @@ import { Elysia } from 'elysia';
 import { z } from 'zod';
 
 import db from '../db/index.js';
-import { member, organizationFiscalProfile } from '../db/schema.js';
+import { employeeFiscalProfile, member, organizationFiscalProfile } from '../db/schema.js';
 import { combinedAuthPlugin, type AuthSession } from '../plugins/auth.js';
 import { buildErrorResponse } from '../utils/error-response.js';
 import { resolveOrganizationId } from '../utils/organization.js';
 
 type AuthType = 'session' | 'apiKey';
 type FiscalRole = string | null;
+type OrganizationFiscalProfileBody = z.infer<typeof organizationFiscalProfileBodySchema>;
+type EmployeeFiscalProfileBody = z.infer<typeof employeeFiscalProfileBodySchema>;
 
 export const organizationFiscalProfileBodySchema = z.object({
 	legalName: z.string().max(255).optional(),
@@ -54,6 +56,176 @@ export const employeeFiscalProfileBodySchema = z.object({
 	integratedDailySalary: z.string().max(30).nullable().optional(),
 	federalEntityCode: z.string().max(3).nullable().optional(),
 });
+
+const ORGANIZATION_FISCAL_PROFILE_UPDATE_FIELDS = [
+	'legalName',
+	'rfc',
+	'fiscalRegimeCode',
+	'expeditionPostalCode',
+	'employerRegistrationNumber',
+	'defaultFederalEntityCode',
+	'payrollCfdiSeries',
+	'payrollStampingMode',
+	'csdCertificateSerial',
+	'csdCertificateValidFrom',
+	'csdCertificateValidTo',
+	'csdSecretRef',
+	'pacProvider',
+	'pacCredentialsSecretRef',
+] as const;
+
+const EMPLOYEE_FISCAL_PROFILE_UPDATE_FIELDS = [
+	'satName',
+	'rfc',
+	'curp',
+	'fiscalPostalCode',
+	'fiscalRegimeCode',
+	'cfdiUseCode',
+	'socialSecurityNumber',
+	'employmentStartDateKey',
+	'contractTypeCode',
+	'unionized',
+	'workdayTypeCode',
+	'payrollRegimeTypeCode',
+	'employeeNumber',
+	'department',
+	'position',
+	'riskPositionCode',
+	'paymentFrequencyCode',
+	'bankAccount',
+	'salaryBaseContribution',
+	'integratedDailySalary',
+	'federalEntityCode',
+] as const;
+
+/**
+ * Checks whether an object has a defined own property.
+ *
+ * @param value - Source object
+ * @param key - Property key to inspect
+ * @returns True when the property exists with a non-undefined value
+ */
+function hasDefinedOwnProperty<TObject extends Record<string, unknown>, TKey extends keyof TObject>(
+	value: TObject,
+	key: TKey,
+): boolean {
+	return Object.prototype.hasOwnProperty.call(value, key) && value[key] !== undefined;
+}
+
+/**
+ * Builds insert values for an organization fiscal profile, preserving existing
+ * defaults for a brand-new partial profile.
+ *
+ * @param args - Organization id, request body, and timestamp
+ * @returns Insert payload for the fiscal profile upsert
+ */
+export function buildOrganizationFiscalProfileInsertPayload(args: {
+	organizationId: string;
+	body: OrganizationFiscalProfileBody;
+	updatedAt: Date;
+}): typeof organizationFiscalProfile.$inferInsert {
+	return {
+		organizationId: args.organizationId,
+		legalName: args.body.legalName ?? '',
+		rfc: args.body.rfc ?? '',
+		fiscalRegimeCode: args.body.fiscalRegimeCode ?? '',
+		expeditionPostalCode: args.body.expeditionPostalCode ?? '',
+		employerRegistrationNumber: args.body.employerRegistrationNumber ?? null,
+		defaultFederalEntityCode: args.body.defaultFederalEntityCode ?? null,
+		payrollCfdiSeries: args.body.payrollCfdiSeries ?? null,
+		payrollStampingMode: args.body.payrollStampingMode ?? 'PER_RUN',
+		csdCertificateSerial: args.body.csdCertificateSerial ?? null,
+		csdCertificateValidFrom: args.body.csdCertificateValidFrom ?? null,
+		csdCertificateValidTo: args.body.csdCertificateValidTo ?? null,
+		csdSecretRef: args.body.csdSecretRef ?? null,
+		pacProvider: args.body.pacProvider ?? null,
+		pacCredentialsSecretRef: args.body.pacCredentialsSecretRef ?? null,
+		updatedAt: args.updatedAt,
+	};
+}
+
+/**
+ * Builds update values for an organization fiscal profile without clearing
+ * fields omitted from a partial request body.
+ *
+ * @param body - Parsed request body
+ * @param updatedAt - Timestamp for the update
+ * @returns Partial update payload for the fiscal profile upsert
+ */
+export function buildOrganizationFiscalProfileUpdateSet(
+	body: OrganizationFiscalProfileBody,
+	updatedAt: Date,
+): Partial<typeof organizationFiscalProfile.$inferInsert> {
+	const updateSet: Partial<typeof organizationFiscalProfile.$inferInsert> = { updatedAt };
+	for (const field of ORGANIZATION_FISCAL_PROFILE_UPDATE_FIELDS) {
+		if (hasDefinedOwnProperty(body, field)) {
+			updateSet[field] = body[field] as never;
+		}
+	}
+	return updateSet;
+}
+
+/**
+ * Builds insert values for an employee fiscal profile, preserving existing
+ * defaults for a brand-new partial profile.
+ *
+ * @param args - Employee id, organization id, request body, and timestamp
+ * @returns Insert payload for the fiscal profile upsert
+ */
+export function buildEmployeeFiscalProfileInsertPayload(args: {
+	employeeId: string;
+	organizationId: string;
+	body: EmployeeFiscalProfileBody;
+	updatedAt: Date;
+}): typeof employeeFiscalProfile.$inferInsert {
+	return {
+		employeeId: args.employeeId,
+		organizationId: args.organizationId,
+		satName: args.body.satName ?? '',
+		rfc: args.body.rfc ?? '',
+		curp: args.body.curp ?? '',
+		fiscalPostalCode: args.body.fiscalPostalCode ?? '',
+		fiscalRegimeCode: args.body.fiscalRegimeCode ?? '605',
+		cfdiUseCode: args.body.cfdiUseCode ?? 'CN01',
+		socialSecurityNumber: args.body.socialSecurityNumber ?? null,
+		employmentStartDateKey: args.body.employmentStartDateKey ?? '',
+		contractTypeCode: args.body.contractTypeCode ?? '',
+		unionized: args.body.unionized ?? null,
+		workdayTypeCode: args.body.workdayTypeCode ?? '',
+		payrollRegimeTypeCode: args.body.payrollRegimeTypeCode ?? '',
+		employeeNumber: args.body.employeeNumber ?? '',
+		department: args.body.department ?? null,
+		position: args.body.position ?? null,
+		riskPositionCode: args.body.riskPositionCode ?? null,
+		paymentFrequencyCode: args.body.paymentFrequencyCode ?? '',
+		bankAccount: args.body.bankAccount ?? null,
+		salaryBaseContribution: args.body.salaryBaseContribution ?? null,
+		integratedDailySalary: args.body.integratedDailySalary ?? null,
+		federalEntityCode: args.body.federalEntityCode ?? null,
+		updatedAt: args.updatedAt,
+	};
+}
+
+/**
+ * Builds update values for an employee fiscal profile without clearing fields
+ * omitted from a partial request body.
+ *
+ * @param body - Parsed request body
+ * @param updatedAt - Timestamp for the update
+ * @returns Partial update payload for the employee fiscal profile upsert
+ */
+export function buildEmployeeFiscalProfileUpdateSet(
+	body: EmployeeFiscalProfileBody,
+	updatedAt: Date,
+): Partial<typeof employeeFiscalProfile.$inferInsert> {
+	const updateSet: Partial<typeof employeeFiscalProfile.$inferInsert> = { updatedAt };
+	for (const field of EMPLOYEE_FISCAL_PROFILE_UPDATE_FIELDS) {
+		if (hasDefinedOwnProperty(body, field)) {
+			updateSet[field] = body[field] as never;
+		}
+	}
+	return updateSet;
+}
 
 /**
  * Checks whether an auth context can access payroll fiscal profiles.
@@ -280,33 +452,18 @@ export const organizationFiscalRoutes = new Elysia({
 			}
 
 			const now = new Date();
-			const payload: typeof organizationFiscalProfile.$inferInsert = {
+			const payload = buildOrganizationFiscalProfileInsertPayload({
 				organizationId: params.organizationId,
-				legalName: body.legalName ?? '',
-				rfc: body.rfc ?? '',
-				fiscalRegimeCode: body.fiscalRegimeCode ?? '',
-				expeditionPostalCode: body.expeditionPostalCode ?? '',
-				employerRegistrationNumber: body.employerRegistrationNumber ?? null,
-				defaultFederalEntityCode: body.defaultFederalEntityCode ?? null,
-				payrollCfdiSeries: body.payrollCfdiSeries ?? null,
-				payrollStampingMode: body.payrollStampingMode ?? 'PER_RUN',
-				csdCertificateSerial: body.csdCertificateSerial ?? null,
-				csdCertificateValidFrom: body.csdCertificateValidFrom ?? null,
-				csdCertificateValidTo: body.csdCertificateValidTo ?? null,
-				csdSecretRef: body.csdSecretRef ?? null,
-				pacProvider: body.pacProvider ?? null,
-				pacCredentialsSecretRef: body.pacCredentialsSecretRef ?? null,
+				body,
 				updatedAt: now,
-			};
+			});
+			const updateSet = buildOrganizationFiscalProfileUpdateSet(body, now);
 			const [saved] = await db
 				.insert(organizationFiscalProfile)
 				.values(payload)
 				.onConflictDoUpdate({
 					target: organizationFiscalProfile.organizationId,
-					set: {
-						...payload,
-						updatedAt: now,
-					},
+					set: updateSet,
 				})
 				.returning();
 

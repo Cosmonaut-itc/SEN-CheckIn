@@ -30,6 +30,7 @@ import { combinedAuthPlugin } from '../plugins/auth.js';
 import { resolveOrganizationId } from '../utils/organization.js';
 import { roundCurrency } from '../utils/money.js';
 import {
+	payrollFiscalPreflightQuerySchema,
 	payrollFiscalVoucherPrepareSchema,
 	payrollCalculateSchema,
 	payrollProcessSchema,
@@ -188,6 +189,65 @@ async function canViewDualPayrollCompensation(args: {
 
 	const role = membership[0]?.role ?? null;
 	return role === 'owner' || role === 'admin';
+}
+
+/**
+ * Checks whether the current caller can run payroll fiscal workflow actions.
+ *
+ * @param args - Authorization context for a fiscal workflow request
+ * @param args.authType - Authentication mechanism used by the request
+ * @param args.role - Organization membership role for session auth
+ * @returns True when the caller can access payroll fiscal preflight and voucher preparation
+ */
+export function canAccessPayrollFiscalWorkflow(args: {
+	authType: 'session' | 'apiKey' | null;
+	role: string | null;
+}): boolean {
+	if (args.authType === 'apiKey') {
+		return true;
+	}
+
+	return args.role === 'owner' || args.role === 'admin' || args.role === 'payroll-fiscal';
+}
+
+/**
+ * Resolves whether the current caller can run payroll fiscal workflow actions
+ * for an organization.
+ *
+ * @param args - Authorization context for the request
+ * @param args.authType - Authentication mechanism used by the request
+ * @param args.organizationId - Organization whose payroll fiscal workflow is being accessed
+ * @param args.session - Active Better Auth session when using cookie auth
+ * @returns True when the caller can access payroll fiscal workflow actions
+ */
+async function canAccessPayrollFiscalWorkflowForOrganization(args: {
+	authType: 'session' | 'apiKey' | null;
+	organizationId: string;
+	session: { userId: string } | null;
+}): Promise<boolean> {
+	if (args.authType === 'apiKey') {
+		return true;
+	}
+
+	if (args.authType !== 'session' || !args.session) {
+		return false;
+	}
+
+	const membership = await db
+		.select({ role: member.role })
+		.from(member)
+		.where(
+			and(
+				eq(member.userId, args.session.userId),
+				eq(member.organizationId, args.organizationId),
+			),
+		)
+		.limit(1);
+
+	return canAccessPayrollFiscalWorkflow({
+		authType: args.authType,
+		role: membership[0]?.role ?? null,
+	});
 }
 
 type DualPayrollCompensationShape = {
@@ -2176,6 +2236,7 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 			sessionOrganizationIds,
 			apiKeyOrganizationId,
 			apiKeyOrganizationIds,
+			query,
 			set,
 		}) => {
 			const { id } = params;
@@ -2205,7 +2266,7 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				return buildErrorResponse('Payroll run not found', 404);
 			}
 
-			const canAccessFiscalPreflight = await canViewDualPayrollCompensation({
+			const canAccessFiscalPreflight = await canAccessPayrollFiscalWorkflowForOrganization({
 				authType,
 				organizationId: run.organizationId,
 				session: session ?? null,
@@ -2222,8 +2283,12 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				data: await buildPayrollFiscalPreflight({
 					organizationId: run.organizationId,
 					payrollRunId: id,
+					paymentDateKey: query.paymentDateKey ?? null,
 				}),
 			};
+		},
+		{
+			query: payrollFiscalPreflightQuerySchema,
 		},
 	)
 	/**
@@ -2276,7 +2341,7 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				);
 			}
 
-			const canAccessFiscalVouchers = await canViewDualPayrollCompensation({
+			const canAccessFiscalVouchers = await canAccessPayrollFiscalWorkflowForOrganization({
 				authType,
 				organizationId: run.organizationId,
 				session: session ?? null,
@@ -2289,6 +2354,7 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 			const fiscalPreflight = await buildPayrollFiscalPreflight({
 				organizationId: run.organizationId,
 				payrollRunId: id,
+				paymentDateKey: body.paymentDateKey ?? null,
 			});
 			if (!fiscalPreflight.canPrepareFiscalVouchers) {
 				set.status = 409;

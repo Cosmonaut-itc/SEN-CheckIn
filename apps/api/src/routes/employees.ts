@@ -71,6 +71,8 @@ import {
 import { buildEmployeeVacationBalance } from '../services/vacation-balance.js';
 import { buildEmployeeDocumentProgressMap } from '../services/employee-documents.js';
 import {
+	buildEmployeeFiscalProfileInsertPayload,
+	buildEmployeeFiscalProfileUpdateSet,
 	canAccessPayrollFiscalProfiles,
 	canRevealPayrollFiscalSensitiveData,
 	employeeFiscalProfileBodySchema,
@@ -1445,38 +1447,20 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				return buildErrorResponse('Payroll fiscal access required', 403);
 			}
 
-			const payload: typeof employeeFiscalProfile.$inferInsert = {
+			const now = new Date();
+			const payload = buildEmployeeFiscalProfileInsertPayload({
 				employeeId: params.id,
 				organizationId,
-				satName: body.satName ?? '',
-				rfc: body.rfc ?? '',
-				curp: body.curp ?? '',
-				fiscalPostalCode: body.fiscalPostalCode ?? '',
-				fiscalRegimeCode: body.fiscalRegimeCode ?? '605',
-				cfdiUseCode: body.cfdiUseCode ?? 'CN01',
-				socialSecurityNumber: body.socialSecurityNumber ?? null,
-				employmentStartDateKey: body.employmentStartDateKey ?? '',
-				contractTypeCode: body.contractTypeCode ?? '',
-				unionized: body.unionized ?? null,
-				workdayTypeCode: body.workdayTypeCode ?? '',
-				payrollRegimeTypeCode: body.payrollRegimeTypeCode ?? '',
-				employeeNumber: body.employeeNumber ?? '',
-				department: body.department ?? null,
-				position: body.position ?? null,
-				riskPositionCode: body.riskPositionCode ?? null,
-				paymentFrequencyCode: body.paymentFrequencyCode ?? '',
-				bankAccount: body.bankAccount ?? null,
-				salaryBaseContribution: body.salaryBaseContribution ?? null,
-				integratedDailySalary: body.integratedDailySalary ?? null,
-				federalEntityCode: body.federalEntityCode ?? null,
-				updatedAt: new Date(),
-			};
+				body,
+				updatedAt: now,
+			});
+			const updateSet = buildEmployeeFiscalProfileUpdateSet(body, now);
 			const [saved] = await db
 				.insert(employeeFiscalProfile)
 				.values(payload)
 				.onConflictDoUpdate({
 					target: employeeFiscalProfile.employeeId,
-					set: payload,
+					set: updateSet,
 				})
 				.returning();
 			const revealSensitive = canRevealPayrollFiscalSensitiveData({ authType, role });

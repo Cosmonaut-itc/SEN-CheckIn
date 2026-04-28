@@ -25,16 +25,16 @@ function readHeroUiPackage(): { version: string; main?: string; module?: string 
 }
 
 describe('HeroUI Native dependency upgrade', () => {
-	it('pins heroui-native to 1.0.0 in the mobile manifest', () => {
+	it('pins heroui-native to 1.0.2 in the mobile manifest', () => {
 		const mobilePackage = readMobilePackage();
 
-		expect(mobilePackage.dependencies?.['heroui-native']).toBe('1.0.0');
+		expect(mobilePackage.dependencies?.['heroui-native']).toBe('1.0.2');
 	});
 
-	it('keeps the installed package at 1.0.0', () => {
+	it('keeps the installed package at 1.0.2', () => {
 		const heroUiPackage = readHeroUiPackage();
 
-		expect(heroUiPackage.version).toBe('1.0.0');
+		expect(heroUiPackage.version).toBe('1.0.2');
 	});
 
 	it('keeps the package entry points available after the upgrade', () => {

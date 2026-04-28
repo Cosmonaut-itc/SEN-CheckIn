@@ -36,6 +36,7 @@ import { aguinaldoRoutes } from './routes/aguinaldo.js';
 import { scheduleTemplateRoutes } from './routes/schedule-templates.js';
 import { scheduleExceptionRoutes } from './routes/schedule-exceptions.js';
 import { schedulingRoutes } from './routes/scheduling.js';
+import { staffingRequirementRoutes } from './routes/staffing-requirements.js';
 import { tourRoutes } from './routes/tours.js';
 import { vacationRoutes } from './routes/vacations.js';
 import { internalHolidayRoutes } from './routes/internal-holidays.js';
@@ -92,6 +93,7 @@ const createProtectedRoutes = () => {
 			.use(scheduleTemplateRoutes)
 			.use(scheduleExceptionRoutes)
 			.use(schedulingRoutes)
+			.use(staffingRequirementRoutes)
 			.use(vacationRoutes)
 			.use(incapacityRoutes)
 			.use(tourRoutes)

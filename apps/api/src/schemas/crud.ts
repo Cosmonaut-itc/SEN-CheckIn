@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { parseDateKey } from '../utils/date-key.js';
 import { isValidIanaTimeZone } from '../utils/time-zone.js';
 
 /**
@@ -38,6 +39,21 @@ export const paginationSchema = z.object({
 const booleanQuerySchema = z
 	.union([z.boolean(), z.enum(['true', 'false']).transform((value) => value === 'true')])
 	.optional();
+
+/**
+ * Schema for YYYY-MM-DD date keys.
+ */
+const dateKeySchema = z
+	.string()
+	.regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date key')
+	.refine((value) => {
+		try {
+			parseDateKey(value);
+			return true;
+		} catch {
+			return false;
+		}
+	}, 'Invalid date key');
 
 /**
  * Shift type enumeration (LFT)
@@ -181,6 +197,52 @@ export const updateJobPositionSchema = z.object({
 export const jobPositionQuerySchema = paginationSchema.extend({
 	organizationId: z.string().optional(),
 	search: z.string().optional(),
+});
+
+// ============================================================================
+// Staffing Requirement Schemas
+// ============================================================================
+
+const STAFFING_MINIMUM_REQUIRED_MAX = 2_147_483_647;
+
+/**
+ * Numeric schema for staffing minimums that rejects blank strings.
+ */
+const staffingMinimumRequiredSchema = z.preprocess((value) => {
+	if (typeof value === 'string') {
+		const trimmedValue = value.trim();
+		return trimmedValue.length > 0 ? Number(trimmedValue) : value;
+	}
+
+	return value;
+}, z.number().int().min(0).max(STAFFING_MINIMUM_REQUIRED_MAX));
+
+/**
+ * Schema for creating a new staffing requirement.
+ */
+export const createStaffingRequirementSchema = z.object({
+	organizationId: z.string().optional(),
+	locationId: z.string().uuid('Invalid location ID'),
+	jobPositionId: z.string().uuid('Invalid job position ID'),
+	minimumRequired: staffingMinimumRequiredSchema,
+});
+
+/**
+ * Schema for updating a staffing requirement.
+ */
+export const updateStaffingRequirementSchema = z.object({
+	locationId: z.string().uuid().optional(),
+	jobPositionId: z.string().uuid().optional(),
+	minimumRequired: staffingMinimumRequiredSchema.optional(),
+});
+
+/**
+ * Schema for staffing requirement query filters.
+ */
+export const staffingRequirementQuerySchema = paginationSchema.extend({
+	organizationId: z.string().optional(),
+	locationId: z.string().uuid().optional(),
+	jobPositionId: z.string().uuid().optional(),
 });
 
 // ============================================================================
@@ -513,6 +575,24 @@ export const attendanceOffsiteTodayQuerySchema = z.object({
 });
 
 /**
+ * Schema for staffing coverage daily queries.
+ */
+export const attendanceStaffingCoverageQuerySchema = z.object({
+	date: dateKeySchema,
+	locationId: z.string().uuid().optional(),
+	organizationId: z.string().optional(),
+});
+
+/**
+ * Schema for staffing coverage stats queries.
+ */
+export const attendanceStaffingCoverageStatsQuerySchema = z.object({
+	days: z.coerce.number().int().min(1).max(90).default(30),
+	locationId: z.string().uuid().optional(),
+	organizationId: z.string().optional(),
+});
+
+/**
  * Schema for employee ID path parameter.
  */
 export const employeeIdParamSchema = z.object({
@@ -566,4 +646,10 @@ export type UpdateOffsiteAttendanceInput = z.infer<typeof updateOffsiteAttendanc
 export type AttendanceQuery = z.infer<typeof attendanceQuerySchema>;
 export type AttendancePresentQuery = z.infer<typeof attendancePresentQuerySchema>;
 export type AttendanceOffsiteTodayQuery = z.infer<typeof attendanceOffsiteTodayQuerySchema>;
+export type AttendanceStaffingCoverageQuery = z.infer<
+	typeof attendanceStaffingCoverageQuerySchema
+>;
+export type AttendanceStaffingCoverageStatsQuery = z.infer<
+	typeof attendanceStaffingCoverageStatsQuerySchema
+>;
 export type EmployeeIdParam = z.infer<typeof employeeIdParamSchema>;

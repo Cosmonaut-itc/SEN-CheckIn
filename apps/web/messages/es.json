@@ -176,6 +176,47 @@
 			"low": "Min",
 			"empty": "Datos de clima no disponibles."
 		},
+		"staffingCoverage": {
+			"eyebrow": "COBERTURA",
+			"title": "Cobertura por puesto",
+			"loading": "Cargando cobertura por puesto",
+			"summary": {
+				"complete": "Completos hoy",
+				"incomplete": "Incompletos hoy",
+				"average30d": "Promedio 30d"
+			},
+			"table": {
+				"location": "Ubicación",
+				"jobPosition": "Puesto",
+				"arrivedMinimum": "Llegaron/Mínimo",
+				"missing": "Faltantes",
+				"employees": "Empleados",
+				"coverage": "Cobertura",
+				"trend": "Seguimiento",
+				"status": "Estatus"
+			},
+			"values": {
+				"arrivedMinimum": "{arrived}/{minimum}",
+				"missing": "Faltan {count}",
+				"noMissing": "Sin faltantes",
+				"streak": "Racha {days}d",
+				"lastIncomplete": "Último {date}",
+				"noRecentIncomplete": "Sin incompletos",
+				"noEmployees": "Sin empleados programados"
+			},
+			"employeeStatus": {
+				"arrived": "Llegó",
+				"missing": "Falta"
+			},
+			"status": {
+				"complete": "Completo",
+				"incomplete": "Incompleto"
+			},
+			"fallbackLocation": "Sin ubicación",
+			"fallbackJobPosition": "Sin puesto",
+			"empty": "No hay mínimos de personal configurados.",
+			"error": "No se pudo cargar la cobertura por puesto."
+		},
 		"locationRail": {
 			"eyebrow": "UBICACIONES",
 			"title": "Por sucursal",
@@ -1648,6 +1689,46 @@
 		"noOrganization": "Selecciona una organización activa para administrar puestos de trabajo.",
 		"actions": {
 			"add": "Agregar puesto"
+		},
+		"staffing": {
+			"configureAria": "Configurar mínimos de {name}",
+			"loading": "Cargando mínimos de personal",
+			"actions": {
+				"configureShort": "Mínimos",
+				"saveForLocation": "Guardar mínimo para {location}",
+				"deleteForLocation": "Eliminar mínimo para {location}"
+			},
+			"dialog": {
+				"title": "Configurar mínimos por ubicación",
+				"description": "Define el mínimo requerido para el puesto {name} en cada ubicación."
+			},
+			"deleteDialog": {
+				"title": "Eliminar mínimo de personal",
+				"description": "¿Seguro que deseas eliminar el mínimo configurado para {location}? Esta acción no se puede deshacer.",
+				"confirm": "Confirmar eliminación"
+			},
+			"fields": {
+				"minimumRequired": "Mínimo requerido",
+				"minimumForLocation": "Mínimo requerido para {location}"
+			},
+			"status": {
+				"configured": "Configurado: {count}",
+				"notConfigured": "Sin mínimo"
+			},
+			"validation": {
+				"minimumRequired": "Ingresa un mínimo de cero o mayor."
+			},
+			"empty": "No hay ubicaciones disponibles para configurar mínimos.",
+			"error": {
+				"title": "No se pudieron cargar los mínimos",
+				"description": "Intenta de nuevo o revisa la conexión."
+			},
+			"toast": {
+				"saveSuccess": "Mínimo actualizado correctamente",
+				"saveError": "No se pudo guardar el mínimo",
+				"deleteSuccess": "Mínimo eliminado correctamente",
+				"deleteError": "No se pudo eliminar el mínimo"
+			}
 		},
 		"dialog": {
 			"title": {

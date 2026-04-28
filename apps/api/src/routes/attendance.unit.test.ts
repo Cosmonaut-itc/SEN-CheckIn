@@ -26,8 +26,10 @@ const authState: AuthState = {
 const resolveOrganizationIdCalls: ResolveOrganizationIdArgs[] = [];
 const dbState: {
 	selectResults: unknown[];
+	whereCalls: unknown[];
 } = {
 	selectResults: [],
+	whereCalls: [],
 };
 
 /**
@@ -53,6 +55,38 @@ function resetState(): void {
 	authState.apiKeyOrganizationIds = ['org-1', 'org-2'];
 	resolveOrganizationIdCalls.length = 0;
 	dbState.selectResults = [];
+	dbState.whereCalls = [];
+}
+
+/**
+ * Searches a nested condition descriptor for a primitive value.
+ *
+ * @param value - Root value to inspect
+ * @param expected - Primitive value to find
+ * @param seen - Previously visited objects for cycle protection
+ * @returns True when expected is found anywhere in the descriptor
+ */
+function conditionContainsValue(
+	value: unknown,
+	expected: string,
+	seen: WeakSet<object> = new WeakSet<object>(),
+): boolean {
+	if (value === expected) {
+		return true;
+	}
+	if (!value || typeof value !== 'object') {
+		return false;
+	}
+	if (seen.has(value)) {
+		return false;
+	}
+	seen.add(value);
+
+	if (Array.isArray(value)) {
+		return value.some((item) => conditionContainsValue(item, expected, seen));
+	}
+
+	return Object.values(value).some((item) => conditionContainsValue(item, expected, seen));
 }
 
 /**
@@ -91,7 +125,8 @@ class FakeQueryBuilder {
 	 *
 	 * @returns Query builder
 	 */
-	where(): this {
+	where(condition: unknown): this {
+		dbState.whereCalls.push(condition);
 		return this;
 	}
 
@@ -272,5 +307,311 @@ describe('attendance dashboard routes', () => {
 		expect(payload.date).toBe('2026-04-21');
 		expect(payload.data).toHaveLength(24);
 		expect(payload.data.every((row) => row.count === 0)).toBe(true);
+	});
+
+	it('allows multi-org api keys to disambiguate organization on staffing coverage requests', async () => {
+		dbState.selectResults = [[{ timeZone: 'America/Mexico_City' }], [], [], [], [], []];
+
+		const { attendanceRoutes } = await import('./attendance.js');
+		const response = await attendanceRoutes.handle(
+			createGetRequest(
+				'/attendance/staffing-coverage?organizationId=org-2&date=2026-04-20',
+			),
+		);
+
+		expect(response.status).toBe(200);
+		expect(resolveOrganizationIdCalls.at(-1)?.requestedOrganizationId).toBe('org-2');
+		const payload = (await response.json()) as {
+			dateKey: string;
+			data: unknown[];
+		};
+		expect(payload.dateKey).toBe('2026-04-20');
+		expect(payload.data).toEqual([]);
+	});
+
+	it('scopes staffing coverage employee loading to the requested location', async () => {
+		dbState.selectResults = [[{ timeZone: 'America/Mexico_City' }], [], [], [], [], []];
+
+		const { attendanceRoutes } = await import('./attendance.js');
+		const response = await attendanceRoutes.handle(
+			createGetRequest(
+				'/attendance/staffing-coverage?organizationId=org-2&date=2026-04-20&locationId=11111111-1111-4111-8111-111111111111',
+			),
+		);
+
+		expect(response.status).toBe(200);
+		const employeeWhereCall = dbState.whereCalls[2];
+		expect(
+			conditionContainsValue(employeeWhereCall, '11111111-1111-4111-8111-111111111111'),
+		).toBe(true);
+	});
+
+	it('maps legacy Mexico City manual schedule exceptions to the requested staffing coverage date', async () => {
+		dbState.selectResults = [
+			[{ timeZone: 'America/Tijuana' }],
+			[
+				{
+					id: 'requirement-guards',
+					organizationId: 'org-2',
+					locationId: 'location-1',
+					locationName: 'Planta Norte',
+					jobPositionId: 'position-guard',
+					jobPositionName: 'Guardia',
+					minimumRequired: 1,
+				},
+			],
+			[
+				{
+					id: 'employee-1',
+					organizationId: 'org-2',
+					firstName: 'Ana',
+					lastName: 'Lara',
+					code: 'A001',
+					status: 'ACTIVE',
+					locationId: 'location-1',
+					jobPositionId: 'position-guard',
+					scheduleTemplateId: null,
+				},
+			],
+			[
+				{
+					employeeId: 'employee-1',
+					dayOfWeek: 1,
+					isWorkingDay: false,
+				},
+			],
+			[
+				{
+					employeeId: 'employee-1',
+					exceptionDate: new Date('2026-04-19T06:00:00.000Z'),
+					exceptionType: 'MODIFIED',
+				},
+			],
+			[],
+		];
+
+		const { attendanceRoutes } = await import('./attendance.js');
+		const response = await attendanceRoutes.handle(
+			createGetRequest('/attendance/staffing-coverage?organizationId=org-2&date=2026-04-20'),
+		);
+
+		expect(response.status).toBe(200);
+		const payload = (await response.json()) as {
+			data: Array<{ scheduledCount: number; employees: Array<{ employeeId: string }> }>;
+		};
+		expect(payload.data[0]?.scheduledCount).toBe(1);
+		expect(payload.data[0]?.employees).toEqual([
+			expect.objectContaining({ employeeId: 'employee-1' }),
+		]);
+	});
+
+	it('does not remap generated previous-day exceptions to the requested staffing coverage date', async () => {
+		dbState.selectResults = [
+			[{ timeZone: 'America/Mexico_City' }],
+			[
+				{
+					id: 'requirement-guards',
+					organizationId: 'org-2',
+					locationId: 'location-1',
+					locationName: 'Planta Norte',
+					jobPositionId: 'position-guard',
+					jobPositionName: 'Guardia',
+					minimumRequired: 1,
+				},
+			],
+			[
+				{
+					id: 'employee-1',
+					organizationId: 'org-2',
+					firstName: 'Ana',
+					lastName: 'Lara',
+					code: 'A001',
+					status: 'ACTIVE',
+					locationId: 'location-1',
+					jobPositionId: 'position-guard',
+					scheduleTemplateId: null,
+				},
+			],
+			[
+				{
+					employeeId: 'employee-1',
+					dayOfWeek: 1,
+					isWorkingDay: false,
+				},
+			],
+			[
+				{
+					employeeId: 'employee-1',
+					exceptionDate: new Date('2026-04-19T06:00:00.000Z'),
+					exceptionType: 'MODIFIED',
+					vacationRequestId: 'vacation-1',
+					incapacityId: null,
+				},
+			],
+			[],
+		];
+
+		const { attendanceRoutes } = await import('./attendance.js');
+		const response = await attendanceRoutes.handle(
+			createGetRequest('/attendance/staffing-coverage?organizationId=org-2&date=2026-04-20'),
+		);
+
+		expect(response.status).toBe(200);
+		const payload = (await response.json()) as {
+			data: Array<{ scheduledCount: number; employees: Array<{ employeeId: string }> }>;
+		};
+		expect(payload.data[0]?.scheduledCount).toBe(0);
+		expect(payload.data[0]?.employees).toEqual([]);
+	});
+
+	it('keeps generated UTC-midnight exceptions on the requested staffing coverage date', async () => {
+		dbState.selectResults = [
+			[{ timeZone: 'America/Mexico_City' }],
+			[
+				{
+					id: 'requirement-guards',
+					organizationId: 'org-2',
+					locationId: 'location-1',
+					locationName: 'Planta Norte',
+					jobPositionId: 'position-guard',
+					jobPositionName: 'Guardia',
+					minimumRequired: 1,
+				},
+			],
+			[
+				{
+					id: 'employee-1',
+					organizationId: 'org-2',
+					firstName: 'Ana',
+					lastName: 'Lara',
+					code: 'A001',
+					status: 'ACTIVE',
+					locationId: 'location-1',
+					jobPositionId: 'position-guard',
+					scheduleTemplateId: null,
+				},
+			],
+			[
+				{
+					employeeId: 'employee-1',
+					dayOfWeek: 1,
+					isWorkingDay: true,
+				},
+			],
+			[
+				{
+					employeeId: 'employee-1',
+					exceptionDate: new Date('2026-04-20T00:00:00.000Z'),
+					exceptionType: 'DAY_OFF',
+					vacationRequestId: 'vacation-1',
+					incapacityId: null,
+				},
+			],
+			[],
+		];
+
+		const { attendanceRoutes } = await import('./attendance.js');
+		const response = await attendanceRoutes.handle(
+			createGetRequest('/attendance/staffing-coverage?organizationId=org-2&date=2026-04-20'),
+		);
+
+		expect(response.status).toBe(200);
+		const payload = (await response.json()) as {
+			data: Array<{ scheduledCount: number; employees: Array<{ employeeId: string }> }>;
+		};
+		expect(payload.data[0]?.scheduledCount).toBe(0);
+		expect(payload.data[0]?.employees).toEqual([]);
+	});
+
+	it('keeps generated server-local midnight exceptions on the requested staffing coverage date', async () => {
+		dbState.selectResults = [
+			[{ timeZone: 'America/Los_Angeles' }],
+			[
+				{
+					id: 'requirement-guards',
+					organizationId: 'org-2',
+					locationId: 'location-1',
+					locationName: 'Planta Norte',
+					jobPositionId: 'position-guard',
+					jobPositionName: 'Guardia',
+					minimumRequired: 1,
+				},
+			],
+			[
+				{
+					id: 'employee-1',
+					organizationId: 'org-2',
+					firstName: 'Ana',
+					lastName: 'Lara',
+					code: 'A001',
+					status: 'ACTIVE',
+					locationId: 'location-1',
+					jobPositionId: 'position-guard',
+					scheduleTemplateId: null,
+				},
+			],
+			[
+				{
+					employeeId: 'employee-1',
+					dayOfWeek: 1,
+					isWorkingDay: true,
+				},
+			],
+			[
+				{
+					employeeId: 'employee-1',
+					exceptionDate: new Date('2026-04-20T06:00:00.000Z'),
+					exceptionType: 'DAY_OFF',
+					vacationRequestId: 'vacation-1',
+					incapacityId: null,
+				},
+			],
+			[],
+		];
+
+		const { attendanceRoutes } = await import('./attendance.js');
+		const response = await attendanceRoutes.handle(
+			createGetRequest('/attendance/staffing-coverage?organizationId=org-2&date=2026-04-20'),
+		);
+
+		expect(response.status).toBe(200);
+		const payload = (await response.json()) as {
+			data: Array<{ scheduledCount: number; employees: Array<{ employeeId: string }> }>;
+		};
+		expect(payload.data[0]?.scheduledCount).toBe(0);
+		expect(payload.data[0]?.employees).toEqual([]);
+	});
+
+	it('rejects multi-org api key staffing coverage requests without organization disambiguation', async () => {
+		const { attendanceRoutes } = await import('./attendance.js');
+		const response = await attendanceRoutes.handle(
+			createGetRequest('/attendance/staffing-coverage?date=2026-04-20'),
+		);
+
+		expect(response.status).toBe(403);
+		expect(resolveOrganizationIdCalls.at(-1)?.requestedOrganizationId).toBeNull();
+		const payload = (await response.json()) as { error: { message: string } };
+		expect(payload.error.message).toBe('Organization is required or not permitted');
+	});
+
+	it('allows multi-org api keys to disambiguate organization on staffing coverage stats requests', async () => {
+		dbState.selectResults = [[{ timeZone: 'America/Mexico_City' }], [], [], [], [], []];
+
+		const { attendanceRoutes } = await import('./attendance.js');
+		const response = await attendanceRoutes.handle(
+			createGetRequest('/attendance/staffing-coverage/stats?organizationId=org-1&days=2'),
+		);
+
+		expect(response.status).toBe(200);
+		expect(resolveOrganizationIdCalls.at(-1)?.requestedOrganizationId).toBe('org-1');
+		const payload = (await response.json()) as {
+			data: unknown[];
+			summary: { days: number; requirementsEvaluated: number };
+		};
+		expect(payload.data).toEqual([]);
+		expect(payload.summary).toMatchObject({
+			days: 2,
+			requirementsEvaluated: 0,
+		});
 	});
 });

@@ -824,6 +824,48 @@ export const jobPosition = pgTable('job_position', {
 });
 
 /**
+ * Staffing requirement table - minimum staffing by location and job position.
+ */
+export const staffingRequirement = pgTable(
+	'staffing_requirement',
+	{
+		id: text('id')
+			.primaryKey()
+			.default(sql`gen_random_uuid()`)
+			.notNull(),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organization.id, { onDelete: 'cascade' }),
+		locationId: text('location_id')
+			.notNull()
+			.references(() => location.id, { onDelete: 'cascade' }),
+		jobPositionId: text('job_position_id')
+			.notNull()
+			.references(() => jobPosition.id, { onDelete: 'cascade' }),
+		minimumRequired: integer('minimum_required').notNull(),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		uniqueIndex('staffing_requirement_org_location_position_uniq').on(
+			table.organizationId,
+			table.locationId,
+			table.jobPositionId,
+		),
+		index('staffing_requirement_organization_idx').on(table.organizationId),
+		index('staffing_requirement_location_idx').on(table.locationId),
+		index('staffing_requirement_job_position_idx').on(table.jobPositionId),
+		check(
+			'staffing_requirement_minimum_required_nonnegative',
+			sql`${table.minimumRequired} >= 0`,
+		),
+	],
+);
+
+/**
  * Schedule Template table - reusable weekly templates per organization.
  */
 export const scheduleTemplate = pgTable('schedule_template', {

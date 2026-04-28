@@ -25,11 +25,14 @@ import {
 	employee,
 	employeeSchedule,
 	employeeIncapacity,
+	jobPosition,
 	location,
 	member,
 	payrollRun,
 	payrollSetting,
 	scheduleException,
+	scheduleTemplateDay,
+	staffingRequirement,
 	vacationRequest,
 	vacationRequestDay,
 } from '../db/schema.js';
@@ -38,6 +41,16 @@ import type { AuthSession } from '../plugins/auth.js';
 import { buildErrorResponse } from '../utils/error-response.js';
 import { hasOrganizationAccess, resolveOrganizationId } from '../utils/organization.js';
 import { addDaysToDateKey, parseDateKey } from '../utils/date-key.js';
+import {
+	calculateStaffingCoverageForDate,
+	calculateStaffingCoverageStats,
+	type StaffingCoverageAttendanceRow,
+	type StaffingCoverageEmployeeRow,
+	type StaffingCoverageExceptionRow,
+	type StaffingCoverageRequirementRow,
+	type StaffingCoverageScheduleRow,
+	type StaffingCoverageTemplateDayRow,
+} from '../services/staffing-coverage.js';
 import {
 	getUtcDateForZonedMidnight,
 	isValidIanaTimeZone,
@@ -48,6 +61,8 @@ import {
 	attendanceQuerySchema,
 	attendancePresentQuerySchema,
 	attendanceOffsiteTodayQuerySchema,
+	attendanceStaffingCoverageQuerySchema,
+	attendanceStaffingCoverageStatsQuerySchema,
 	createAttendanceSchema,
 	updateOffsiteAttendanceSchema,
 	employeeIdParamSchema,
@@ -66,6 +81,7 @@ import {
 const OFFSITE_MAX_RETRO_DAYS = 7;
 const OFFSITE_VIRTUAL_DEVICE_PREFIX = 'VIRTUAL-RH-OFFSITE';
 const OFFSITE_EMPLOYEE_DATE_UNIQUE_INDEX = 'attendance_record_offsite_employee_date_uniq';
+const LEGACY_SCHEDULE_EXCEPTION_SERVER_TIME_ZONES = ['America/Mexico_City'] as const;
 
 /**
  * Builds a deterministic virtual device code used for RH offsite records.
@@ -146,6 +162,388 @@ function buildUtcBoundsForDateKey(
 	const startUtc = getUtcDateForZonedMidnight(dateKey, timeZone);
 	const endExclusiveUtc = getUtcDateForZonedMidnight(addDaysToDateKey(dateKey, 1), timeZone);
 	return { startUtc, endExclusiveUtc };
+}
+
+/**
+ * Builds the inclusive date-key window used by staffing coverage stats.
+ *
+ * @param startDateKey - First date key in the window
+ * @param endDateKey - Last date key in the window
+ * @returns Date keys from start to end
+ * @throws When either date key is invalid
+ */
+function buildInclusiveDateKeyWindow(startDateKey: string, endDateKey: string): string[] {
+	parseDateKey(startDateKey);
+	parseDateKey(endDateKey);
+
+	const dateKeys: string[] = [];
+	let currentDateKey = startDateKey;
+	while (currentDateKey <= endDateKey) {
+		dateKeys.push(currentDateKey);
+		currentDateKey = addDaysToDateKey(currentDateKey, 1);
+	}
+	return dateKeys;
+}
+
+/**
+ * Removes duplicate dates by timestamp while preserving candidate priority.
+ *
+ * @param candidates - Candidate date instances
+ * @returns Deduplicated date list
+ */
+function dedupeDatesByTime(candidates: Date[]): Date[] {
+	const seenTimes = new Set<number>();
+	return candidates.filter((candidate) => {
+		const time = candidate.getTime();
+		if (seenTimes.has(time)) {
+			return false;
+		}
+		seenTimes.add(time);
+		return true;
+	});
+}
+
+/**
+ * Builds a date for runtime-server-local midnight for a date key.
+ *
+ * @param dateKey - Business date key
+ * @returns Date at local midnight in the current runtime timezone
+ * @throws When the date key is invalid
+ */
+function buildRuntimeServerLocalMidnightDate(dateKey: string): Date {
+	const { year, month, day } = parseDateKey(dateKey);
+	return new Date(year, month - 1, day, 0, 0, 0, 0);
+}
+
+/**
+ * Builds a date for the legacy startOfDay(Date.UTC-date) storage pattern.
+ *
+ * @param dateKey - Business date key
+ * @param timeZone - Timezone used by the legacy server runtime
+ * @returns Date matching `startOfDay(new Date(dateKey UTC))` in the timezone
+ * @throws When the date key is invalid
+ */
+function buildLegacyServerStartOfUtcDate(dateKey: string, timeZone: string): Date {
+	const utcMidnight = new Date(`${dateKey}T00:00:00.000Z`);
+	const serverLocalDateKey = toDateKeyInTimeZone(utcMidnight, timeZone);
+	return getUtcDateForZonedMidnight(serverLocalDateKey, timeZone);
+}
+
+/**
+ * Builds the schedule-exception storage candidates for a business date key.
+ *
+ * @param dateKey - Business date key
+ * @param timeZone - Organization timezone
+ * @returns Candidate persisted dates for the same business day
+ * @throws When the date key is invalid
+ */
+function buildPrimaryScheduleExceptionStorageDateCandidates(
+	dateKey: string,
+	timeZone: string,
+): Date[] {
+	parseDateKey(dateKey);
+	const utcMidnight = new Date(`${dateKey}T00:00:00.000Z`);
+	const zonedMidnight = getUtcDateForZonedMidnight(dateKey, timeZone);
+	const serverLocalMidnight = buildRuntimeServerLocalMidnightDate(dateKey);
+	const legacyServerMidnights = LEGACY_SCHEDULE_EXCEPTION_SERVER_TIME_ZONES.map(
+		(legacyTimeZone) => getUtcDateForZonedMidnight(dateKey, legacyTimeZone),
+	);
+	return dedupeDatesByTime([
+		utcMidnight,
+		zonedMidnight,
+		serverLocalMidnight,
+		...legacyServerMidnights,
+	]);
+}
+
+/**
+ * Builds the legacy manual schedule-exception storage candidates for a business date key.
+ *
+ * @param dateKey - Business date key
+ * @param timeZone - Organization timezone
+ * @returns Candidate persisted dates for date-only values normalized with server-local startOfDay
+ * @throws When the date key is invalid
+ */
+function buildLegacyManualScheduleExceptionStorageDateCandidates(
+	dateKey: string,
+	timeZone: string,
+): Date[] {
+	parseDateKey(dateKey);
+	const utcMidnight = new Date(`${dateKey}T00:00:00.000Z`);
+	const zonedMidnight = getUtcDateForZonedMidnight(dateKey, timeZone);
+	const runtimeServerStartOfUtcDate = startOfDay(utcMidnight);
+	const legacyServerStartOfUtcDates = LEGACY_SCHEDULE_EXCEPTION_SERVER_TIME_ZONES.map(
+		(legacyTimeZone) => buildLegacyServerStartOfUtcDate(dateKey, legacyTimeZone),
+	);
+	const previousOrgLocalMidnight =
+		zonedMidnight.getTime() > utcMidnight.getTime()
+			? [getUtcDateForZonedMidnight(addDaysToDateKey(dateKey, -1), timeZone)]
+			: [];
+
+	return dedupeDatesByTime([
+		runtimeServerStartOfUtcDate,
+		...legacyServerStartOfUtcDates,
+		...previousOrgLocalMidnight,
+	]);
+}
+
+type ScheduleExceptionDateKeyMaps = {
+	primaryDateKeyByStoredTime: Map<number, string>;
+	legacyManualDateKeyByStoredTime: Map<number, string>;
+};
+
+/**
+ * Builds reverse lookups from persisted exception timestamps to staffing date keys.
+ *
+ * @param startDateKey - First business date key
+ * @param endDateKey - Last business date key
+ * @param timeZone - Organization timezone
+ * @returns Primary and legacy manual mappings keyed by persisted timestamp milliseconds
+ */
+function buildScheduleExceptionDateKeyMaps(
+	startDateKey: string,
+	endDateKey: string,
+	timeZone: string,
+): ScheduleExceptionDateKeyMaps {
+	const primaryDateKeyByStoredTime = new Map<number, string>();
+	const legacyManualDateKeyByStoredTime = new Map<number, string>();
+	for (const dateKey of buildInclusiveDateKeyWindow(startDateKey, endDateKey)) {
+		for (const candidate of buildPrimaryScheduleExceptionStorageDateCandidates(dateKey, timeZone)) {
+			const time = candidate.getTime();
+			if (!primaryDateKeyByStoredTime.has(time)) {
+				primaryDateKeyByStoredTime.set(time, dateKey);
+			}
+		}
+		for (const candidate of buildLegacyManualScheduleExceptionStorageDateCandidates(
+			dateKey,
+			timeZone,
+		)) {
+			const time = candidate.getTime();
+			if (!legacyManualDateKeyByStoredTime.has(time)) {
+				legacyManualDateKeyByStoredTime.set(time, dateKey);
+			}
+		}
+	}
+	return { primaryDateKeyByStoredTime, legacyManualDateKeyByStoredTime };
+}
+
+type StaffingCoverageSourceRows = {
+	requirements: StaffingCoverageRequirementRow[];
+	employees: StaffingCoverageEmployeeRow[];
+	schedules: StaffingCoverageScheduleRow[];
+	templateDays: StaffingCoverageTemplateDayRow[];
+	exceptions: StaffingCoverageExceptionRow[];
+	attendanceRecords: StaffingCoverageAttendanceRow[];
+};
+
+/**
+ * Loads staffing coverage source rows for an organization and date window.
+ *
+ * @param args - Organization, location, date-window, and timezone filters
+ * @returns Source rows for coverage calculations
+ */
+async function loadStaffingCoverageSourceRows(args: {
+	organizationId: string;
+	locationId?: string | null;
+	startDateKey: string;
+	endDateKey: string;
+	timeZone: string;
+}): Promise<StaffingCoverageSourceRows> {
+	const requirementConditions: SQL<unknown>[] = [
+		eq(staffingRequirement.organizationId, args.organizationId),
+	];
+	if (args.locationId) {
+		requirementConditions.push(eq(staffingRequirement.locationId, args.locationId));
+	}
+
+	const requirements = await db
+		.select({
+			id: staffingRequirement.id,
+			organizationId: staffingRequirement.organizationId,
+			locationId: staffingRequirement.locationId,
+			locationName: location.name,
+			jobPositionId: staffingRequirement.jobPositionId,
+			jobPositionName: jobPosition.name,
+			minimumRequired: staffingRequirement.minimumRequired,
+		})
+		.from(staffingRequirement)
+		.innerJoin(location, eq(staffingRequirement.locationId, location.id))
+		.innerJoin(jobPosition, eq(staffingRequirement.jobPositionId, jobPosition.id))
+		.where(and(...requirementConditions))
+		.orderBy(location.name, jobPosition.name);
+
+	const { startUtc } = buildUtcBoundsForDateKey(args.startDateKey, args.timeZone);
+	const { endExclusiveUtc } = buildUtcBoundsForDateKey(args.endDateKey, args.timeZone);
+	const employeeConditions: SQL<unknown>[] = [
+		eq(employee.organizationId, args.organizationId),
+		eq(employee.status, 'ACTIVE'),
+	];
+	if (args.locationId) {
+		employeeConditions.push(sql`(
+			${employee.locationId} = ${args.locationId}
+			OR EXISTS (
+				SELECT 1
+				FROM attendance_record staffing_attendance_record
+				INNER JOIN device staffing_attendance_device
+					ON staffing_attendance_record.device_id = staffing_attendance_device.id
+				WHERE staffing_attendance_record.employee_id = ${employee.id}
+					AND staffing_attendance_record.type = 'CHECK_IN'
+					AND staffing_attendance_device.location_id = ${args.locationId}
+					AND staffing_attendance_record.timestamp >= ${startUtc}
+					AND staffing_attendance_record.timestamp < ${endExclusiveUtc}
+			)
+		)`);
+	}
+
+	const employees = await db
+		.select({
+			id: employee.id,
+			organizationId: employee.organizationId,
+			firstName: employee.firstName,
+			lastName: employee.lastName,
+			code: employee.code,
+			status: employee.status,
+			locationId: employee.locationId,
+			jobPositionId: employee.jobPositionId,
+			scheduleTemplateId: employee.scheduleTemplateId,
+		})
+		.from(employee)
+		.where(and(...employeeConditions));
+
+	const employeeIds = employees.map((row) => row.id);
+	const templateIds = employees
+		.map((row) => row.scheduleTemplateId)
+		.filter((id): id is string => Boolean(id));
+	const templateDays =
+		templateIds.length > 0
+			? await db
+					.select({
+						templateId: scheduleTemplateDay.templateId,
+						dayOfWeek: scheduleTemplateDay.dayOfWeek,
+						isWorkingDay: scheduleTemplateDay.isWorkingDay,
+					})
+					.from(scheduleTemplateDay)
+					.where(inArray(scheduleTemplateDay.templateId, templateIds))
+			: [];
+	const schedules =
+		employeeIds.length > 0
+			? await db
+					.select({
+						employeeId: employeeSchedule.employeeId,
+						dayOfWeek: employeeSchedule.dayOfWeek,
+						isWorkingDay: employeeSchedule.isWorkingDay,
+					})
+					.from(employeeSchedule)
+					.where(inArray(employeeSchedule.employeeId, employeeIds))
+			: [];
+
+	const { primaryDateKeyByStoredTime, legacyManualDateKeyByStoredTime } =
+		buildScheduleExceptionDateKeyMaps(
+			args.startDateKey,
+			args.endDateKey,
+			args.timeZone,
+		);
+	const exceptionStoredTimes = [
+		...primaryDateKeyByStoredTime.keys(),
+		...legacyManualDateKeyByStoredTime.keys(),
+	];
+	const exceptionStartUtc = new Date(Math.min(...exceptionStoredTimes));
+	const exceptionEndExclusiveUtc = new Date(Math.max(...exceptionStoredTimes) + 1);
+	const exceptionRows =
+		employeeIds.length > 0
+			? await db
+						.select({
+							employeeId: scheduleException.employeeId,
+							exceptionDate: scheduleException.exceptionDate,
+							exceptionType: scheduleException.exceptionType,
+							vacationRequestId: scheduleException.vacationRequestId,
+							incapacityId: scheduleException.incapacityId,
+						})
+					.from(scheduleException)
+					.where(
+						and(
+							inArray(scheduleException.employeeId, employeeIds),
+							gte(scheduleException.exceptionDate, exceptionStartUtc),
+							lt(scheduleException.exceptionDate, exceptionEndExclusiveUtc),
+						),
+					)
+			: [];
+	const exceptions = exceptionRows.map((row) => {
+		const isGeneratedException = Boolean(row.vacationRequestId || row.incapacityId);
+		return {
+			employeeId: row.employeeId,
+			exceptionDateKey: isGeneratedException
+				? (primaryDateKeyByStoredTime.get(row.exceptionDate.getTime()) ??
+					toDateKeyInTimeZone(row.exceptionDate, args.timeZone))
+				: (primaryDateKeyByStoredTime.get(row.exceptionDate.getTime()) ??
+					legacyManualDateKeyByStoredTime.get(row.exceptionDate.getTime()) ??
+					toDateKeyInTimeZone(row.exceptionDate, args.timeZone)),
+			exceptionType: row.exceptionType,
+		};
+	});
+
+	const attendanceConditions: SQL<unknown>[] = [
+		eq(employee.organizationId, args.organizationId),
+		or(
+			and(
+				eq(attendanceRecord.type, 'CHECK_IN'),
+				gte(attendanceRecord.timestamp, startUtc),
+				lt(attendanceRecord.timestamp, endExclusiveUtc),
+			),
+			and(
+				eq(attendanceRecord.type, 'WORK_OFFSITE'),
+				gte(attendanceRecord.offsiteDateKey, args.startDateKey),
+				lte(attendanceRecord.offsiteDateKey, args.endDateKey),
+			),
+		) as SQL<unknown>,
+	];
+	if (args.locationId) {
+		attendanceConditions.push(
+			or(
+				and(
+					eq(attendanceRecord.type, 'CHECK_IN'),
+					eq(device.locationId, args.locationId),
+				),
+				and(
+					eq(attendanceRecord.type, 'WORK_OFFSITE'),
+					eq(employee.locationId, args.locationId),
+				),
+			) as SQL<unknown>,
+		);
+	}
+
+	const attendanceRows = await db
+		.select({
+			id: attendanceRecord.id,
+			employeeId: attendanceRecord.employeeId,
+			type: attendanceRecord.type,
+			timestamp: attendanceRecord.timestamp,
+			offsiteDateKey: attendanceRecord.offsiteDateKey,
+			locationId: device.locationId,
+		})
+		.from(attendanceRecord)
+		.innerJoin(employee, eq(attendanceRecord.employeeId, employee.id))
+		.innerJoin(device, eq(attendanceRecord.deviceId, device.id))
+		.where(and(...attendanceConditions));
+	const attendanceRecords = attendanceRows.map((row) => ({
+		id: row.id,
+		employeeId: row.employeeId,
+		type: row.type,
+		timestamp: row.timestamp,
+		offsiteDateKey: row.offsiteDateKey,
+		localDateKey:
+			row.type === 'CHECK_IN' ? toDateKeyInTimeZone(row.timestamp, args.timeZone) : null,
+		locationId: row.type === 'CHECK_IN' ? row.locationId : null,
+	}));
+
+	return {
+		requirements,
+		employees,
+		schedules,
+		templateDays,
+		exceptions,
+		attendanceRecords,
+	};
 }
 
 const attendanceTimelineQuerySchema = z.object({
@@ -1265,6 +1663,131 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 		},
 		{
 			query: attendanceHourlyQuerySchema,
+		},
+	)
+
+	/**
+	 * Returns staffing coverage by configured location and job position for a date.
+	 *
+	 * @route GET /attendance/staffing-coverage
+	 * @param query.date - Organization-local date key
+	 * @param query.locationId - Optional location filter
+	 * @param query.organizationId - Optional organization id
+	 * @returns Daily staffing coverage rows
+	 */
+	.get(
+		'/staffing-coverage',
+		async ({
+			query,
+			authType,
+			session,
+			sessionOrganizationIds,
+			set,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+		}) => {
+			const { date, locationId, organizationId: requestedOrganizationId } = query;
+			const organizationId = resolveOrganizationId({
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: requestedOrganizationId ?? null,
+			});
+
+			if (!organizationId) {
+				const status = authType === 'apiKey' ? 403 : 400;
+				set.status = status;
+				return buildErrorResponse('Organization is required or not permitted', status);
+			}
+
+			const timeZone = await resolveOrganizationTimeZone(organizationId);
+			const sourceRows = await loadStaffingCoverageSourceRows({
+				organizationId,
+				locationId,
+				startDateKey: date,
+				endDateKey: date,
+				timeZone,
+			});
+			const coverage = calculateStaffingCoverageForDate({
+				dateKey: date,
+				organizationId,
+				locationId,
+				...sourceRows,
+			});
+
+			return {
+				dateKey: coverage.dateKey,
+				data: coverage.items,
+			};
+		},
+		{
+			query: attendanceStaffingCoverageQuerySchema,
+		},
+	)
+
+	/**
+	 * Returns staffing coverage statistics for the recent organization-local window.
+	 *
+	 * @route GET /attendance/staffing-coverage/stats
+	 * @param query.days - Inclusive date-window length
+	 * @param query.locationId - Optional location filter
+	 * @param query.organizationId - Optional organization id
+	 * @returns Aggregated staffing coverage statistics
+	 */
+	.get(
+		'/staffing-coverage/stats',
+		async ({
+			query,
+			authType,
+			session,
+			sessionOrganizationIds,
+			set,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+		}) => {
+			const { days, locationId, organizationId: requestedOrganizationId } = query;
+			const organizationId = resolveOrganizationId({
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: requestedOrganizationId ?? null,
+			});
+
+			if (!organizationId) {
+				const status = authType === 'apiKey' ? 403 : 400;
+				set.status = status;
+				return buildErrorResponse('Organization is required or not permitted', status);
+			}
+
+			const timeZone = await resolveOrganizationTimeZone(organizationId);
+			const todayDateKey = toDateKeyInTimeZone(new Date(), timeZone);
+			const startDateKey = addDaysToDateKey(todayDateKey, -(days - 1));
+			const sourceRows = await loadStaffingCoverageSourceRows({
+				organizationId,
+				locationId,
+				startDateKey,
+				endDateKey: todayDateKey,
+				timeZone,
+			});
+			const stats = calculateStaffingCoverageStats({
+				todayDateKey,
+				days,
+				organizationId,
+				locationId,
+				...sourceRows,
+			});
+
+			return {
+				data: stats.items,
+				summary: stats.summary,
+			};
+		},
+		{
+			query: attendanceStaffingCoverageStatsQuerySchema,
 		},
 	)
 

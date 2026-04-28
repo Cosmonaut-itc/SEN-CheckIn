@@ -132,6 +132,44 @@ export interface JobPositionQueryParams extends ListQueryParams {
 }
 
 /**
+ * Query parameters for staffing requirements list.
+ */
+export interface StaffingRequirementQueryParams extends ListQueryParams {
+	/** Filter by organization ID */
+	organizationId?: string | null;
+	/** Filter by location ID */
+	locationId?: string;
+	/** Filter by job position ID */
+	jobPositionId?: string;
+}
+
+/**
+ * Query parameters for daily staffing coverage.
+ */
+export interface AttendanceStaffingCoverageQueryParams extends Record<string, unknown> {
+	/** Evaluated date key (YYYY-MM-DD) */
+	date: string;
+	/** Optional organization filter */
+	organizationId?: string | null;
+	/** Optional location filter */
+	locationId?: string;
+}
+
+/**
+ * Query parameters for staffing coverage statistics.
+ */
+export interface AttendanceStaffingCoverageStatsQueryParams extends Record<string, unknown> {
+	/** Date key used to scope dashboard cache freshness */
+	asOfDate?: string;
+	/** Optional inclusive date-window length */
+	days?: number;
+	/** Optional organization filter */
+	organizationId?: string | null;
+	/** Optional location filter */
+	locationId?: string;
+}
+
+/**
  * Query parameters for users list.
  */
 export interface UsersQueryParams {
@@ -552,6 +590,25 @@ export const queryKeys = {
 	},
 
 	/**
+	 * Query keys for staffing requirement-related queries.
+	 */
+	staffingRequirements: {
+		/** Base key for all staffing requirement queries */
+		all: ['staffingRequirements'] as const,
+		/**
+		 * Generates a query key for the staffing requirements list.
+		 * @param params - Optional staffing requirement filters
+		 */
+		list: (params?: StaffingRequirementQueryParams) =>
+			queryKeyConstructor(['staffingRequirements', 'list'] as const, params),
+		/**
+		 * Generates a query key for a specific staffing requirement.
+		 * @param id - The staffing requirement ID
+		 */
+		detail: (id: string) => ['staffingRequirements', 'detail', id] as const,
+	},
+
+	/**
 	 * Query keys for attendance-related queries.
 	 */
 	attendance: {
@@ -575,6 +632,18 @@ export const queryKeys = {
 		 */
 		offsiteToday: (params: AttendanceOffsiteTodayQueryParams) =>
 			queryKeyConstructor(['attendance', 'offsiteToday'] as const, params),
+		/**
+		 * Generates a query key for daily staffing coverage rows.
+		 * @param params - Staffing coverage query parameters
+		 */
+		staffingCoverage: (params: AttendanceStaffingCoverageQueryParams) =>
+			queryKeyConstructor(['attendance', 'staffingCoverage'] as const, params),
+		/**
+		 * Generates a query key for staffing coverage statistics.
+		 * @param params - Staffing coverage stats query parameters
+		 */
+		staffingCoverageStats: (params: AttendanceStaffingCoverageStatsQueryParams) =>
+			queryKeyConstructor(['attendance', 'staffingCoverageStats'] as const, params),
 	},
 
 	/**
@@ -622,6 +691,18 @@ export const queryKeys = {
 			queryKeyConstructor(['dashboard', 'locationCapacity'] as const, {
 				organizationId: organizationId ?? undefined,
 			}),
+		/**
+		 * Generates a query key for dashboard daily staffing coverage rows.
+		 * @param params - Staffing coverage query parameters
+		 */
+		staffingCoverage: (params: AttendanceStaffingCoverageQueryParams) =>
+			queryKeyConstructor(['dashboard', 'staffingCoverage'] as const, params),
+		/**
+		 * Generates a query key for dashboard staffing coverage statistics.
+		 * @param params - Staffing coverage stats query parameters
+		 */
+		staffingCoverageStats: (params?: AttendanceStaffingCoverageStatsQueryParams) =>
+			queryKeyConstructor(['dashboard', 'staffingCoverageStats'] as const, params),
 	},
 
 	/**
@@ -924,6 +1005,15 @@ export const mutationKeys = {
 		create: ['jobPositions', 'create'] as const,
 		update: ['jobPositions', 'update'] as const,
 		delete: ['jobPositions', 'delete'] as const,
+	},
+
+	/**
+	 * Mutation keys for staffing requirement operations.
+	 */
+	staffingRequirements: {
+		create: ['staffingRequirements', 'create'] as const,
+		update: ['staffingRequirements', 'update'] as const,
+		delete: ['staffingRequirements', 'delete'] as const,
 	},
 
 	/**

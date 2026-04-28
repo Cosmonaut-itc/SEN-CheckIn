@@ -593,6 +593,7 @@ export function DashboardPageClient(): React.ReactElement {
 		() => getUtcDayRangeFromDateKey(todayDateKey, dashboardTimeZone),
 		[dashboardTimeZone, todayDateKey],
 	);
+	const staffingLocationId = activeLocationId ?? undefined;
 
 	const { data: counts } = useSuspenseQuery({
 		queryKey: queryKeys.dashboard.counts(organizationId),
@@ -681,11 +682,13 @@ export function DashboardPageClient(): React.ReactElement {
 		queryKey: queryKeys.dashboard.staffingCoverage({
 			date: todayDateKey,
 			organizationId: organizationId ?? undefined,
+			locationId: staffingLocationId,
 		}),
 		queryFn: () =>
 			fetchAttendanceStaffingCoverage({
 				date: todayDateKey,
 				organizationId: organizationId ?? null,
+				locationId: staffingLocationId,
 			}),
 		enabled: Boolean(organizationId),
 	});
@@ -698,11 +701,13 @@ export function DashboardPageClient(): React.ReactElement {
 			asOfDate: todayDateKey,
 			days: 30,
 			organizationId: organizationId ?? undefined,
+			locationId: staffingLocationId,
 		}),
 		queryFn: () =>
 			fetchAttendanceStaffingCoverageStats({
 				days: 30,
 				organizationId: organizationId ?? null,
+				locationId: staffingLocationId,
 			}),
 		enabled: Boolean(organizationId),
 	});

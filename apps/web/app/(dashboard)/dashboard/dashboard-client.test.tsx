@@ -14,6 +14,8 @@ const useOrgContextMock = vi.fn();
 const useIsMobileMock = vi.fn();
 const useTourMock = vi.fn();
 const fetchAttendanceTimelineMock = vi.fn();
+const fetchAttendanceStaffingCoverageMock = vi.fn();
+const fetchAttendanceStaffingCoverageStatsMock = vi.fn();
 const dashboardMapPropsSpy = vi.fn();
 
 vi.mock('@tanstack/react-query', () => ({
@@ -157,6 +159,17 @@ vi.mock('@/lib/client-functions', async () => {
 			offset?: number;
 			kind?: 'in' | 'out' | 'late' | 'offsite';
 		}) => fetchAttendanceTimelineMock(params),
+		fetchAttendanceStaffingCoverage: (params: {
+			date: string;
+			organizationId?: string | null;
+			locationId?: string;
+		}) => fetchAttendanceStaffingCoverageMock(params),
+		fetchAttendanceStaffingCoverageStats: (params?: {
+			asOfDate?: string;
+			days?: number;
+			organizationId?: string | null;
+			locationId?: string;
+		}) => fetchAttendanceStaffingCoverageStatsMock(params),
 	};
 });
 
@@ -404,10 +417,26 @@ describe('DashboardPageClient', () => {
 		});
 		useQueryMock.mockReset();
 		fetchAttendanceTimelineMock.mockReset();
+		fetchAttendanceStaffingCoverageMock.mockReset();
+		fetchAttendanceStaffingCoverageStatsMock.mockReset();
 		dashboardMapPropsSpy.mockReset();
 		fetchAttendanceTimelineMock.mockResolvedValue({
 			data: [],
 			lateTotal: 0,
+		});
+		fetchAttendanceStaffingCoverageMock.mockResolvedValue({
+			dateKey: '2026-04-21',
+			data: [],
+		});
+		fetchAttendanceStaffingCoverageStatsMock.mockResolvedValue({
+			data: [],
+			summary: {
+				requirementsEvaluated: 0,
+				completeToday: 0,
+				incompleteToday: 0,
+				averageCoveragePercent30d: 0,
+				days: 30,
+			},
 		});
 	});
 
@@ -921,6 +950,72 @@ describe('DashboardPageClient', () => {
 		fireEvent.mouseEnter(hoveredLocation);
 
 		expect(map).toHaveAttribute('data-focused-location-id', 'location-1');
+	});
+
+	it('scopes staffing coverage queries to the selected location', async () => {
+		const queryResults = createQueryResults();
+		let queryCallIndex = 0;
+
+		useQueryMock.mockImplementation(() => {
+			const result = queryResults[queryCallIndex % queryResults.length];
+			queryCallIndex += 1;
+			return result;
+		});
+
+		render(<DashboardPageClient />);
+
+		fireEvent.click(screen.getByTestId('location-rail-item-location-1'));
+
+		const coverageQuery = useQueryMock.mock.calls
+			.map(
+				([options]) =>
+					options as { queryKey?: unknown[]; queryFn?: () => Promise<unknown> },
+			)
+			.find(
+				(options) =>
+					JSON.stringify(options.queryKey) ===
+					JSON.stringify(
+						queryKeys.dashboard.staffingCoverage({
+							date: '2026-04-21',
+							organizationId: 'org-1',
+							locationId: 'location-1',
+						}),
+					),
+			);
+		const statsQuery = useQueryMock.mock.calls
+			.map(
+				([options]) =>
+					options as { queryKey?: unknown[]; queryFn?: () => Promise<unknown> },
+			)
+			.find(
+				(options) =>
+					JSON.stringify(options.queryKey) ===
+					JSON.stringify(
+						queryKeys.dashboard.staffingCoverageStats({
+							asOfDate: '2026-04-21',
+							days: 30,
+							organizationId: 'org-1',
+							locationId: 'location-1',
+						}),
+					),
+			);
+
+		expect(coverageQuery).toBeDefined();
+		expect(statsQuery).toBeDefined();
+
+		await coverageQuery?.queryFn?.();
+		await statsQuery?.queryFn?.();
+
+		expect(fetchAttendanceStaffingCoverageMock).toHaveBeenCalledWith({
+			date: '2026-04-21',
+			organizationId: 'org-1',
+			locationId: 'location-1',
+		});
+		expect(fetchAttendanceStaffingCoverageStatsMock).toHaveBeenCalledWith({
+			days: 30,
+			organizationId: 'org-1',
+			locationId: 'location-1',
+		});
 	});
 
 	it('refetches the dashboard timeline with the selected activity filter', async () => {

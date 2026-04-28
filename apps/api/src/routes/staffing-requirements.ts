@@ -1,4 +1,4 @@
-import { type SQL, and, eq, ne } from 'drizzle-orm';
+import { type SQL, and, count, eq, ne } from 'drizzle-orm';
 import { Elysia } from 'elysia';
 
 import db from '../db/index.js';
@@ -219,8 +219,11 @@ export const staffingRequirementRoutes = new Elysia({ prefix: '/staffing-require
 				.limit(limit)
 				.offset(offset)
 				.orderBy(staffingRequirement.locationId, staffingRequirement.jobPositionId);
-			const countResult = await db.select().from(staffingRequirement).where(whereClause);
-			const total = countResult.length;
+			const countResult = await db
+				.select({ total: count() })
+				.from(staffingRequirement)
+				.where(whereClause);
+			const total = Number(countResult[0]?.total ?? 0);
 
 			return {
 				data: results,

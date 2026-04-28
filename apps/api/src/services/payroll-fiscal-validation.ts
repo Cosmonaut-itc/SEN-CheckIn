@@ -1067,7 +1067,7 @@ function validateEmployeeProfile(
 	if (hasText(profile.fiscalPostalCode) && !validatePostalCode(profile.fiscalPostalCode)) {
 		issues.push(
 			createIssue(
-				'EMPLOYEE_FISCAL_POSTAL_CODE_REQUIRED',
+				'EMPLOYEE_FISCAL_POSTAL_CODE_INVALID',
 				'employeeFiscalProfile.fiscalPostalCode',
 				'Employee fiscal postal code format is invalid.',
 				'EMPLOYEE',

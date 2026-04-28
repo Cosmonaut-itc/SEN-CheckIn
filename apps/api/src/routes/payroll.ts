@@ -2525,7 +2525,7 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				return buildErrorResponse('Payroll run not found', 404);
 			}
 
-			const canAccessFiscalVouchers = await canViewDualPayrollCompensation({
+			const canAccessFiscalVouchers = await canAccessPayrollFiscalWorkflowForOrganization({
 				authType,
 				organizationId: run.organizationId,
 				session: session ?? null,

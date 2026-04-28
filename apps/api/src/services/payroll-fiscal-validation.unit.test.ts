@@ -694,6 +694,36 @@ describe('payroll fiscal preflight evaluation', () => {
 		);
 	});
 
+	it('distinguishes invalid employee fiscal postal code format from a missing value', () => {
+		const result = evaluatePayrollFiscalPreflight({
+			...completePreflightInput,
+			employees: [
+				{
+					employeeId: 'emp-1',
+					displayName: 'Persona Uno',
+					fiscalProfile: {
+						...completeEmployeeFiscalProfile,
+						fiscalPostalCode: '6400A',
+					},
+				},
+			],
+		});
+
+		const [employee] = result.employeeResults;
+		expect(result.canPrepareFiscalVouchers).toBe(false);
+		expect(employee?.issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					code: 'EMPLOYEE_FISCAL_POSTAL_CODE_INVALID',
+					field: 'employeeFiscalProfile.fiscalPostalCode',
+				}),
+			]),
+		);
+		expect(employee?.issues.map((issue) => issue.code)).not.toContain(
+			'EMPLOYEE_FISCAL_POSTAL_CODE_REQUIRED',
+		);
+	});
+
 	it('blocks employees when CFDI receptor fiscal fields are missing', () => {
 		const result = evaluatePayrollFiscalPreflight({
 			...completePreflightInput,

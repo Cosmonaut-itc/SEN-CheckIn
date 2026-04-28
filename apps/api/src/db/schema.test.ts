@@ -172,4 +172,15 @@ describe('fiscal master data schema', () => {
 			'CREATE UNIQUE INDEX "payroll_concept_sat_mapping_scope_type_node_uniq"',
 		);
 	});
+
+	it('allows multiple incomplete employee fiscal profiles without employee numbers', () => {
+		const migrationSql = readFileSync(
+			new URL('../../drizzle/0053_fiscal_master_data.sql', import.meta.url),
+			'utf8',
+		);
+
+		expect(migrationSql).toContain(
+			'CREATE UNIQUE INDEX "employee_fiscal_profile_org_employee_number_uniq" ON "employee_fiscal_profile" USING btree ("organization_id","employee_number") WHERE "employee_number" <> \'\';',
+		);
+	});
 });

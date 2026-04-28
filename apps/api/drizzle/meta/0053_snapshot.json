@@ -1294,6 +1294,7 @@
 						}
 					],
 					"isUnique": true,
+					"where": "\"employee_fiscal_profile\".\"employee_number\" <> ''",
 					"concurrently": false,
 					"method": "btree",
 					"with": {}

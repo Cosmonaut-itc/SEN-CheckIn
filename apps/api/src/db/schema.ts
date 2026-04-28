@@ -1177,10 +1177,9 @@ export const employeeFiscalProfile = pgTable(
 	},
 	(table) => [
 		uniqueIndex('employee_fiscal_profile_employee_uniq').on(table.employeeId),
-		uniqueIndex('employee_fiscal_profile_org_employee_number_uniq').on(
-			table.organizationId,
-			table.employeeNumber,
-		),
+		uniqueIndex('employee_fiscal_profile_org_employee_number_uniq')
+			.on(table.organizationId, table.employeeNumber)
+			.where(sql`${table.employeeNumber} <> ''`),
 		index('employee_fiscal_profile_org_idx').on(table.organizationId),
 	],
 );

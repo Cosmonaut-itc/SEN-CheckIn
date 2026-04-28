@@ -85,7 +85,7 @@ ALTER TABLE "employee_fiscal_profile" ADD CONSTRAINT "employee_fiscal_profile_or
 ALTER TABLE "organization_fiscal_profile" ADD CONSTRAINT "organization_fiscal_profile_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payroll_concept_sat_mapping" ADD CONSTRAINT "payroll_concept_sat_mapping_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "employee_fiscal_profile_employee_uniq" ON "employee_fiscal_profile" USING btree ("employee_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "employee_fiscal_profile_org_employee_number_uniq" ON "employee_fiscal_profile" USING btree ("organization_id","employee_number");--> statement-breakpoint
+CREATE UNIQUE INDEX "employee_fiscal_profile_org_employee_number_uniq" ON "employee_fiscal_profile" USING btree ("organization_id","employee_number") WHERE "employee_number" <> '';--> statement-breakpoint
 CREATE INDEX "employee_fiscal_profile_org_idx" ON "employee_fiscal_profile" USING btree ("organization_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "organization_fiscal_profile_organization_uniq" ON "organization_fiscal_profile" USING btree ("organization_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "payroll_concept_sat_mapping_global_type_node_uniq" ON "payroll_concept_sat_mapping" USING btree ("internal_concept_type","cfdi_node") WHERE "organization_id" is null;--> statement-breakpoint

@@ -401,6 +401,14 @@ export const employmentContractType = pgEnum('employment_contract_type', [
 export const deviceStatus = pgEnum('device_status', ['ONLINE', 'OFFLINE', 'MAINTENANCE']);
 
 /**
+ * Enum for checker device settings PIN policy mode.
+ */
+export const deviceSettingsPinMode = pgEnum('device_settings_pin_mode', [
+	'GLOBAL',
+	'PER_DEVICE',
+]);
+
+/**
  * Enum for payment frequency
  */
 export const paymentFrequency = pgEnum('payment_frequency', ['WEEKLY', 'BIWEEKLY', 'MONTHLY']);
@@ -1078,6 +1086,49 @@ export const device = pgTable(
 			sql`${table.batteryLevel} >= 0 AND ${table.batteryLevel} <= 100`,
 		),
 	],
+);
+
+/**
+ * Organization-level settings PIN configuration for checker device settings.
+ * PIN hashes are isolated from the device table so regular device reads never
+ * expose secret material.
+ */
+export const organizationDeviceSettingsPinConfig = pgTable(
+	'organization_device_settings_pin_config',
+	{
+		organizationId: text('organization_id')
+			.primaryKey()
+			.references(() => organization.id, { onDelete: 'cascade' }),
+		mode: deviceSettingsPinMode('mode').default('GLOBAL').notNull(),
+		globalPinHash: text('global_pin_hash'),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+);
+
+/**
+ * Per-device settings PIN override hashes.
+ */
+export const deviceSettingsPinOverride = pgTable(
+	'device_settings_pin_override',
+	{
+		deviceId: text('device_id')
+			.primaryKey()
+			.references(() => device.id, { onDelete: 'cascade' }),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organization.id, { onDelete: 'cascade' }),
+		pinHash: text('pin_hash').notNull(),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [index('device_settings_pin_override_org_idx').on(table.organizationId)],
 );
 
 /**

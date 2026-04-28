@@ -16,6 +16,7 @@ import {
 	updateDeviceSettings,
 } from './client-functions';
 import { flushPendingAttendanceQueue, isOfflineNetInfoState } from './offline-attendance';
+import { clearSettingsAccessGrants } from './settings-access-guard';
 import { useAuthContext } from '@/providers/auth-provider';
 
 type DeviceSettings = {
@@ -206,7 +207,10 @@ export function DeviceProvider({ children }: PropsWithChildren): JSX.Element {
 				flushWhenReachable(state);
 			})
 			.catch((error: unknown) => {
-				console.warn('[device-context] Failed to inspect connectivity before queue flush', error);
+				console.warn(
+					'[device-context] Failed to inspect connectivity before queue flush',
+					error,
+				);
 			});
 
 		const unsubscribe = NetInfo.addEventListener((state) => {
@@ -320,6 +324,7 @@ export function DeviceProvider({ children }: PropsWithChildren): JSX.Element {
 	 */
 	const clearSettings = useCallback(async () => {
 		setSettings(null);
+		clearSettingsAccessGrants();
 		await writeStoredSettings(null);
 	}, []);
 

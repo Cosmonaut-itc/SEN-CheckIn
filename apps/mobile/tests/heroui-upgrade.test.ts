@@ -5,9 +5,13 @@ import { existsSync } from 'fs';
  *
  * @returns Mobile package metadata relevant to dependency policy checks
  */
-function readMobilePackage(): { dependencies?: Record<string, string> } {
+function readMobilePackage(): {
+	dependencies?: Record<string, string>;
+	scripts?: Record<string, string>;
+} {
 	return require('../package.json') as {
 		dependencies?: Record<string, string>;
+		scripts?: Record<string, string>;
 	};
 }
 
@@ -25,16 +29,16 @@ function readHeroUiPackage(): { version: string; main?: string; module?: string 
 }
 
 describe('HeroUI Native dependency upgrade', () => {
-	it('pins heroui-native to 1.0.0 in the mobile manifest', () => {
+	it('pins heroui-native to 1.0.2 in the mobile manifest', () => {
 		const mobilePackage = readMobilePackage();
 
-		expect(mobilePackage.dependencies?.['heroui-native']).toBe('1.0.0');
+		expect(mobilePackage.dependencies?.['heroui-native']).toBe('1.0.2');
 	});
 
-	it('keeps the installed package at 1.0.0', () => {
+	it('keeps the installed package at 1.0.2', () => {
 		const heroUiPackage = readHeroUiPackage();
 
-		expect(heroUiPackage.version).toBe('1.0.0');
+		expect(heroUiPackage.version).toBe('1.0.2');
 	});
 
 	it('keeps the package entry points available after the upgrade', () => {
@@ -49,5 +53,13 @@ describe('HeroUI Native dependency upgrade', () => {
 		expect(
 			candidateEntries.some((entry) => existsSync(require.resolve(`${packageRoot}${entry}`))),
 		).toBe(true);
+	});
+});
+
+describe('Expo Go development script', () => {
+	it('starts Expo Go in offline mode to avoid remote development certificate API failures', () => {
+		const mobilePackage = readMobilePackage();
+
+		expect(mobilePackage.scripts?.dev).toContain('--offline');
 	});
 });

@@ -139,6 +139,11 @@ jest.mock('heroui-native', () => {
 		Button,
 		Card,
 		Spinner,
+		useToast: () => ({
+			toast: {
+				show: jest.fn(),
+			},
+		}),
 	};
 });
 
@@ -273,9 +278,7 @@ describe('ScannerScreen device linking state', () => {
 		);
 		expect(screen.getByText('Configura este dispositivo')).toBeOnTheScreen();
 		expect(
-			screen.getByText(
-				'Vincula la terminal para empezar a registrar asistencia desde aquí.',
-			),
+			screen.getByText('Vincula la terminal para empezar a registrar asistencia desde aquí.'),
 		).toBeOnTheScreen();
 
 		fireEvent.press(screen.getByText('Vincular dispositivo'));

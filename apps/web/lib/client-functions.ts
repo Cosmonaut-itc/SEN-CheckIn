@@ -169,6 +169,44 @@ export interface Device {
 }
 
 /**
+ * Device settings PIN policy mode.
+ */
+export type DeviceSettingsPinMode = 'GLOBAL' | 'PER_DEVICE';
+
+/**
+ * Effective settings PIN source for a device.
+ */
+export type DeviceSettingsPinSource = 'GLOBAL' | 'DEVICE' | 'NONE';
+
+/**
+ * List-friendly settings PIN status for a device.
+ */
+export type DeviceSettingsPinListStatus = 'OWN_PIN' | 'USES_GLOBAL' | 'NOT_CONFIGURED';
+
+/**
+ * Device row included in settings PIN configuration responses.
+ */
+export interface DeviceSettingsPinConfigDevice {
+	id: string;
+	code: string;
+	name: string | null;
+	deviceStatus: DeviceStatus;
+	overrideConfigured: boolean;
+	pinRequired: boolean;
+	pinSource: DeviceSettingsPinSource;
+	status: DeviceSettingsPinListStatus;
+}
+
+/**
+ * Organization settings PIN configuration response.
+ */
+export interface DeviceSettingsPinConfig {
+	mode: DeviceSettingsPinMode;
+	globalPinConfigured: boolean;
+	devices: DeviceSettingsPinConfigDevice[];
+}
+
+/**
  * Location record interface.
  */
 export interface Location {
@@ -1898,6 +1936,46 @@ export async function fetchDevicesList(
 		data: (payload?.data ?? []) as Device[],
 		pagination: payload?.pagination ?? { total: 0, limit: 100, offset: 0 },
 	};
+}
+
+/**
+ * Fetches settings PIN configuration and per-device PIN status metadata.
+ *
+ * @param params - Optional organization scope
+ * @returns A promise resolving to the settings PIN configuration
+ * @throws Error if the API request fails
+ */
+export async function fetchDeviceSettingsPinConfig(params?: {
+	organizationId?: string | null;
+}): Promise<DeviceSettingsPinConfig> {
+	if (params?.organizationId === null) {
+		return {
+			mode: 'GLOBAL',
+			globalPinConfigured: false,
+			devices: [],
+		};
+	}
+
+	const query: { organizationId?: string } = {};
+
+	if (params?.organizationId) {
+		query.organizationId = params.organizationId;
+	}
+
+	const response = await api.devices['settings-pin-config'].get({ $query: query });
+
+	if (response.error) {
+		throw new Error('Failed to fetch device settings PIN config');
+	}
+
+	const payload = getApiResponseData(response) as { data?: DeviceSettingsPinConfig } | null;
+	const config = payload?.data;
+
+	if (!config) {
+		throw new Error('Failed to fetch device settings PIN config');
+	}
+
+	return config;
 }
 
 // ============================================================================

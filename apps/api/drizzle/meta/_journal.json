@@ -372,6 +372,13 @@
       "when": 1776902400000,
       "tag": "0052_payroll_fiscal_vouchers",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1777401054674,
+      "tag": "0053_fiscal_master_data",
+      "breakpoints": true
     }
   ]
 }

@@ -7,6 +7,7 @@ const mockReplace = jest.fn();
 const mockSignOut = jest.fn();
 const mockClearAuthStorage = jest.fn();
 const mockRequestReauth = jest.fn();
+const mockClearSettingsAccessGrants = jest.fn();
 
 jest.mock('expo-router', () => ({
 	useRouter: () => ({
@@ -65,6 +66,10 @@ jest.mock('@/lib/auth-client', () => ({
 	signOut: () => mockSignOut(),
 }));
 
+jest.mock('@/lib/settings-access-guard', () => ({
+	clearSettingsAccessGrants: () => mockClearSettingsAccessGrants(),
+}));
+
 jest.mock('@/providers/auth-provider', () => ({
 	useAuthContext: () => ({
 		requestReauth: (...args: unknown[]) => mockRequestReauth(...args),
@@ -79,6 +84,7 @@ describe('LockedScreen sign-in recovery', () => {
 		mockSignOut.mockReset();
 		mockClearAuthStorage.mockReset();
 		mockRequestReauth.mockReset();
+		mockClearSettingsAccessGrants.mockReset();
 	});
 
 	afterEach(() => {
@@ -93,8 +99,26 @@ describe('LockedScreen sign-in recovery', () => {
 
 		fireEvent.press(screen.getByText('Locked.actions.signIn'));
 
-		await waitFor(() => {
-			expect(mockReplace).toHaveBeenCalledWith('/(auth)/login');
-		}, { timeout: 10_000 });
+		await waitFor(
+			() => {
+				expect(mockClearSettingsAccessGrants).toHaveBeenCalledTimes(1);
+				expect(mockReplace).toHaveBeenCalledWith('/(auth)/login');
+			},
+			{ timeout: 10_000 },
+		);
 	}, 15_000);
+
+	it('clears temporary settings PIN grants before returning to sign-in', async () => {
+		mockSignOut.mockResolvedValue(undefined);
+		mockClearAuthStorage.mockResolvedValue(undefined);
+
+		render(<LockedScreen />);
+
+		fireEvent.press(screen.getByText('Locked.actions.signIn'));
+
+		await waitFor(() => {
+			expect(mockClearSettingsAccessGrants).toHaveBeenCalledTimes(1);
+			expect(mockReplace).toHaveBeenCalledWith('/(auth)/login');
+		});
+	});
 });

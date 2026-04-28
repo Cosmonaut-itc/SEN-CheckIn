@@ -1,4 +1,5 @@
 import { fetchDeviceSettingsPinStatus, verifyDeviceSettingsPin } from './client-functions';
+import type { DeviceSettingsPinStatus } from './settings-pin-client';
 
 const mockAuthedFetchForEden = jest.fn();
 
@@ -60,6 +61,27 @@ describe('device settings PIN client functions', () => {
 				method: 'GET',
 			}),
 		);
+	});
+
+	it('accepts PER_DEVICE as an online settings PIN mode from the API contract', async () => {
+		const status: DeviceSettingsPinStatus = {
+			deviceId: 'device-1',
+			mode: 'PER_DEVICE',
+			pinRequired: true,
+			source: 'DEVICE',
+			globalPinConfigured: true,
+			deviceOverrideConfigured: true,
+		};
+
+		mockAuthedFetchForEden.mockResolvedValue({
+			ok: true,
+			status: 200,
+			json: async () => ({
+				data: status,
+			}),
+		});
+
+		await expect(fetchDeviceSettingsPinStatus('device-1')).resolves.toEqual(status);
 	});
 
 	it('sends only the entered PIN when verifying settings access', async () => {

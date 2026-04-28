@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'bun:test';
 import { parseSetCookieHeader } from 'better-auth/cookies';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 
 import {
@@ -14,7 +14,7 @@ import {
 	requireResponseData,
 	requireRoute,
 } from '../test-utils/contract-helpers.js';
-import { device, member, organization } from '../db/schema.js';
+import { device, deviceSettingsPinOverride, member, organization } from '../db/schema.js';
 
 let authInstance: typeof import('../../utils/auth.js').auth;
 let db: typeof import('../db/index.js').default;
@@ -203,9 +203,7 @@ describe('device routes (contract)', () => {
 			WHERE organization_id = ${organizationId}
 			LIMIT 1
 		`);
-		const rows = Array.isArray(result)
-			? result
-			: ((result as { rows?: unknown[] }).rows ?? []);
+		const rows = Array.isArray(result) ? result : ((result as { rows?: unknown[] }).rows ?? []);
 		const first = rows[0];
 		if (!first || typeof first !== 'object') {
 			return null;
@@ -246,6 +244,7 @@ describe('device routes (contract)', () => {
 		await db.execute(sql`
 			DELETE FROM device_settings_pin_override
 			WHERE organization_id = ${seed.organizationId}
+				OR device_id = ${seed.deviceId}
 		`);
 		await db.execute(sql`
 			DELETE FROM organization_device_settings_pin_config
@@ -357,7 +356,9 @@ describe('device routes (contract)', () => {
 		expect(typeof summaryRecord?.locationName).toBe('string');
 		expect(summaryRecord?.lastHeartbeat).not.toBeNull();
 		expect(
-			summaryPayload.data.some((record: { code: string }) => record.code === foreignDeviceCode),
+			summaryPayload.data.some(
+				(record: { code: string }) => record.code === foreignDeviceCode,
+			),
 		).toBe(false);
 	});
 
@@ -850,7 +851,9 @@ describe('device routes (contract)', () => {
 		);
 
 		expect(response.status).toBe(403);
-		expect(JSON.stringify(response.payload)).toContain('Only owner/admin can manage device settings PIN');
+		expect(JSON.stringify(response.payload)).toContain(
+			'Only owner/admin can manage device settings PIN',
+		);
 	});
 
 	it('allows platform admins to update settings PIN config for organizations where they are not members', async () => {
@@ -954,16 +957,11 @@ describe('device routes (contract)', () => {
 		});
 		const orgAdminCookie = await createSeedOrganizationAdminCookie();
 
-		const response = await requestJson(
-			'PUT',
-			'/devices/settings-pin-config',
-			orgAdminCookie,
-			{
-				organizationId: targetOrganizationId,
-				mode: 'GLOBAL',
-				globalPin: '8642',
-			},
-		);
+		const response = await requestJson('PUT', '/devices/settings-pin-config', orgAdminCookie, {
+			organizationId: targetOrganizationId,
+			mode: 'GLOBAL',
+			globalPin: '8642',
+		});
 
 		expect(response.status).toBe(403);
 		expect(await readStoredGlobalPinHash(seed.organizationId)).toBeNull();
@@ -1035,6 +1033,63 @@ describe('device routes (contract)', () => {
 			pinRequired: true,
 			globalPinConfigured: true,
 			deviceOverrideConfigured: true,
+		});
+	});
+
+	it('reports per-device overrides by device ID when stored organization metadata is stale', async () => {
+		await cleanupSettingsPinState();
+
+		const staleOrganizationId = randomUUID();
+		await db.insert(organization).values({
+			id: staleOrganizationId,
+			name: `Organización obsoleta ${staleOrganizationId.slice(0, 8)}`,
+			slug: `organizacion-obsoleta-${staleOrganizationId.slice(0, 8)}`,
+			logo: null,
+			metadata: null,
+		});
+
+		const configResponse = await requestJson(
+			'PUT',
+			'/devices/settings-pin-config',
+			adminSession.cookieHeader,
+			{
+				mode: 'PER_DEVICE',
+				globalPin: '3333',
+			},
+		);
+		expect(configResponse.status).toBe(200);
+
+		const overrideResponse = await requestJson(
+			'PUT',
+			`/devices/${seed.deviceId}/settings-pin`,
+			adminSession.cookieHeader,
+			{
+				pin: '4444',
+			},
+		);
+		expect(overrideResponse.status).toBe(200);
+
+		await db
+			.update(deviceSettingsPinOverride)
+			.set({ organizationId: staleOrganizationId })
+			.where(eq(deviceSettingsPinOverride.deviceId, seed.deviceId));
+
+		const listResponse = await requestJson(
+			'GET',
+			`/devices/settings-pin-config?organizationId=${seed.organizationId}`,
+			adminSession.cookieHeader,
+		);
+
+		expect(listResponse.status).toBe(200);
+		const listData = requirePayloadData(listResponse.payload);
+		const deviceStatuses = listData.devices as JsonRecord[];
+		const seedDeviceStatus = deviceStatuses.find((record) => record.id === seed.deviceId);
+		expect(seedDeviceStatus).toMatchObject({
+			id: seed.deviceId,
+			pinSource: 'DEVICE',
+			pinRequired: true,
+			overrideConfigured: true,
+			status: 'OWN_PIN',
 		});
 	});
 

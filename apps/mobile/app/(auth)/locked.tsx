@@ -6,6 +6,7 @@ import { ScrollView, Text, View } from 'react-native';
 
 import { i18n } from '@/lib/i18n';
 import { clearAuthStorage, signOut } from '@/lib/auth-client';
+import { clearSettingsAccessGrants } from '@/lib/settings-access-guard';
 import { useAuthContext } from '@/providers/auth-provider';
 
 /**
@@ -83,6 +84,7 @@ export default function LockedScreen(): JSX.Element {
 							} catch (error) {
 								console.warn('[locked] Failed to sign out', error);
 							} finally {
+								clearSettingsAccessGrants();
 								try {
 									await clearAuthStorage();
 								} catch (error) {

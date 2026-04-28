@@ -4,7 +4,7 @@ import { i18n } from './i18n';
 /**
  * Effective settings PIN mode returned by the API.
  */
-export type DeviceSettingsPinMode = 'GLOBAL' | 'DEVICE' | 'DISABLED';
+export type DeviceSettingsPinMode = 'GLOBAL' | 'PER_DEVICE';
 
 /**
  * Source that determines whether a settings PIN is required.

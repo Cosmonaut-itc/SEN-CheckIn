@@ -1,4 +1,4 @@
-import { type SQL, and, eq, ilike, or } from 'drizzle-orm';
+import { type SQL, and, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import { Elysia, t } from 'elysia';
 import crypto from 'node:crypto';
 import { promisify } from 'node:util';
@@ -47,13 +47,21 @@ type DeviceSettingsPinMode = 'GLOBAL' | 'PER_DEVICE';
 type DeviceSettingsPinSource = 'GLOBAL' | 'DEVICE' | 'NONE';
 type DeviceSettingsPinListStatus = 'OWN_PIN' | 'USES_GLOBAL' | 'NOT_CONFIGURED';
 type DeviceRecord = typeof device.$inferSelect;
-type DeviceSettingsPinConfigRecord =
-	typeof organizationDeviceSettingsPinConfig.$inferSelect;
+type DeviceSettingsPinConfigRecord = typeof organizationDeviceSettingsPinConfig.$inferSelect;
+type DeviceSettingsPinStatusPayload = {
+	deviceId: string;
+	mode: DeviceSettingsPinMode;
+	pinRequired: boolean;
+	source: DeviceSettingsPinSource;
+	globalPinConfigured: boolean;
+	deviceOverrideConfigured: boolean;
+};
 type SettingsPinVerifyFailure = {
 	failedAttempts: number;
 	firstFailedAtMs: number;
 };
 
+// Process-local limiter; see documentacion/settings-pin-checadores.md for scaling notes.
 const settingsPinVerifyFailures = new Map<string, SettingsPinVerifyFailure>();
 
 /**
@@ -387,7 +395,14 @@ async function buildSettingsPinConfigPayload(organizationId: string): Promise<{
 	const overrideRows = await db
 		.select({ deviceId: deviceSettingsPinOverride.deviceId })
 		.from(deviceSettingsPinOverride)
-		.where(eq(deviceSettingsPinOverride.organizationId, organizationId));
+		.where(
+			deviceRows.length > 0
+				? inArray(
+						deviceSettingsPinOverride.deviceId,
+						deviceRows.map((row) => row.id),
+					)
+				: sql`false`,
+		);
 	const overrideDeviceIds = new Set(overrideRows.map((row) => row.deviceId));
 
 	return {
@@ -452,53 +467,89 @@ async function loadAccessibleDevice(args: {
 }
 
 /**
- * Builds API-safe settings PIN status for a device.
+ * Loads a device settings PIN override hash by device ID.
+ *
+ * @param deviceId - Device identifier
+ * @returns Stored override hash when configured, otherwise null
+ */
+async function getDeviceSettingsPinOverrideHash(deviceId: string): Promise<string | null> {
+	const overrideRows = await db
+		.select({ pinHash: deviceSettingsPinOverride.pinHash })
+		.from(deviceSettingsPinOverride)
+		.where(eq(deviceSettingsPinOverride.deviceId, deviceId))
+		.limit(1);
+	return overrideRows[0]?.pinHash ?? null;
+}
+
+/**
+ * Builds the default no-PIN payload for devices without organization context.
  *
  * @param record - Device record
  * @returns Device settings PIN status payload without hashes
  */
-async function buildDeviceSettingsPinStatusPayload(record: DeviceRecord): Promise<{
-	deviceId: string;
-	mode: DeviceSettingsPinMode;
-	pinRequired: boolean;
-	source: DeviceSettingsPinSource;
-	globalPinConfigured: boolean;
-	deviceOverrideConfigured: boolean;
-}> {
-	const organizationId = record.organizationId;
-	if (!organizationId) {
-		return {
-			deviceId: record.id,
-			mode: 'GLOBAL',
-			pinRequired: false,
-			source: 'NONE',
-			globalPinConfigured: false,
-			deviceOverrideConfigured: false,
-		};
-	}
+function buildSettingsPinStatusPayloadWithoutOrganization(
+	record: DeviceRecord,
+): DeviceSettingsPinStatusPayload {
+	return {
+		deviceId: record.id,
+		mode: 'GLOBAL',
+		pinRequired: false,
+		source: 'NONE',
+		globalPinConfigured: false,
+		deviceOverrideConfigured: false,
+	};
+}
 
-	const config = await getSettingsPinConfig(organizationId);
-	const overrideRows = await db
-		.select({ pinHash: deviceSettingsPinOverride.pinHash })
-		.from(deviceSettingsPinOverride)
-		.where(eq(deviceSettingsPinOverride.deviceId, record.id))
-		.limit(1);
-	const deviceOverrideConfigured = Boolean(overrideRows[0]?.pinHash);
-	const globalPinConfigured = Boolean(config.globalPinHash);
+/**
+ * Builds API-safe settings PIN status from preloaded PIN state.
+ *
+ * @param args - Device, config, and override state
+ * @returns Device settings PIN status payload without hashes
+ */
+function buildDeviceSettingsPinStatusPayloadFromState(args: {
+	record: DeviceRecord;
+	config: Awaited<ReturnType<typeof getSettingsPinConfig>>;
+	overrideHash: string | null;
+}): DeviceSettingsPinStatusPayload {
+	const deviceOverrideConfigured = Boolean(args.overrideHash);
+	const globalPinConfigured = Boolean(args.config.globalPinHash);
 	const status = buildDeviceSettingsPinStatus({
-		mode: config.mode,
+		mode: args.config.mode,
 		globalPinConfigured,
 		overrideConfigured: deviceOverrideConfigured,
 	});
 
 	return {
-		deviceId: record.id,
-		mode: config.mode,
+		deviceId: args.record.id,
+		mode: args.config.mode,
 		pinRequired: status.pinRequired,
 		source: status.pinSource,
 		globalPinConfigured,
 		deviceOverrideConfigured,
 	};
+}
+
+/**
+ * Builds API-safe settings PIN status for a device.
+ *
+ * @param record - Device record
+ * @returns Device settings PIN status payload without hashes
+ */
+async function buildDeviceSettingsPinStatusPayload(
+	record: DeviceRecord,
+): Promise<DeviceSettingsPinStatusPayload> {
+	const organizationId = record.organizationId;
+	if (!organizationId) {
+		return buildSettingsPinStatusPayloadWithoutOrganization(record);
+	}
+
+	const config = await getSettingsPinConfig(organizationId);
+	const overrideHash = await getDeviceSettingsPinOverrideHash(record.id);
+	return buildDeviceSettingsPinStatusPayloadFromState({
+		record,
+		config,
+		overrideHash,
+	});
 }
 
 /**
@@ -517,17 +568,12 @@ async function resolveEffectiveSettingsPin(record: DeviceRecord): Promise<{
 		return {
 			pinHash: null,
 			lockoutScope: null,
-			status: await buildDeviceSettingsPinStatusPayload(record),
+			status: buildSettingsPinStatusPayloadWithoutOrganization(record),
 		};
 	}
 
 	const config = await getSettingsPinConfig(organizationId);
-	const overrideRows = await db
-		.select({ pinHash: deviceSettingsPinOverride.pinHash })
-		.from(deviceSettingsPinOverride)
-		.where(eq(deviceSettingsPinOverride.deviceId, record.id))
-		.limit(1);
-	const overrideHash = overrideRows[0]?.pinHash ?? null;
+	const overrideHash = await getDeviceSettingsPinOverrideHash(record.id);
 	const usesDeviceOverride = config.mode === 'PER_DEVICE' && Boolean(overrideHash);
 	const pinHash = usesDeviceOverride ? overrideHash : config.globalPinHash;
 	const lockoutScope = pinHash
@@ -539,7 +585,11 @@ async function resolveEffectiveSettingsPin(record: DeviceRecord): Promise<{
 	return {
 		pinHash,
 		lockoutScope,
-		status: await buildDeviceSettingsPinStatusPayload(record),
+		status: buildDeviceSettingsPinStatusPayloadFromState({
+			record,
+			config,
+			overrideHash,
+		}),
 	};
 }
 
@@ -594,7 +644,10 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 				.from(device)
 				.leftJoin(
 					location,
-					and(eq(device.locationId, location.id), eq(location.organizationId, organizationId)),
+					and(
+						eq(device.locationId, location.id),
+						eq(location.organizationId, organizationId),
+					),
 				)
 				.where(eq(device.organizationId, organizationId))
 				.orderBy(device.name, device.code);
@@ -694,10 +747,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 			});
 			if (!canManage) {
 				set.status = 403;
-				return buildErrorResponse(
-					'Only owner/admin can manage device settings PIN',
-					403,
-				);
+				return buildErrorResponse('Only owner/admin can manage device settings PIN', 403);
 			}
 
 			const config = await getSettingsPinConfig(organizationId);
@@ -717,12 +767,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 						globalPinHash,
 						updatedAt: now,
 					})
-					.where(
-						eq(
-							organizationDeviceSettingsPinConfig.organizationId,
-							organizationId,
-						),
-					);
+					.where(eq(organizationDeviceSettingsPinConfig.organizationId, organizationId));
 			} else {
 				await db.insert(organizationDeviceSettingsPinConfig).values({
 					organizationId,
@@ -794,10 +839,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 			});
 			if (!canManage) {
 				set.status = 403;
-				return buildErrorResponse(
-					'Only owner/admin can manage device settings PIN',
-					403,
-				);
+				return buildErrorResponse('Only owner/admin can manage device settings PIN', 403);
 			}
 
 			if (body.pin === null) {
@@ -833,9 +875,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 				}
 			}
 
-			clearSettingsPinVerifyFailuresForScope(
-				`device:${loaded.record.id}:settings-pin`,
-			);
+			clearSettingsPinVerifyFailuresForScope(`device:${loaded.record.id}:settings-pin`);
 
 			return {
 				data: await buildDeviceSettingsPinStatusPayload(loaded.record),
@@ -1573,10 +1613,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 				updatePayload.batteryLevel = body.batteryLevel;
 			}
 
-			await db
-				.update(device)
-				.set(updatePayload)
-				.where(eq(device.id, id));
+			await db.update(device).set(updatePayload).where(eq(device.id, id));
 
 			// Fetch updated record
 			const updated = await db.select().from(device).where(eq(device.id, id)).limit(1);

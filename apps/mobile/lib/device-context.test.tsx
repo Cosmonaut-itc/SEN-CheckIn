@@ -13,6 +13,7 @@ const mockDeleteItemAsync = jest.fn();
 const mockFlushPendingAttendanceQueue = jest.fn();
 const mockNetInfoFetch = jest.fn();
 const mockNetInfoAddEventListener = jest.fn();
+const mockClearSettingsAccessGrants = jest.fn();
 type MockSessionState = { session: { id: string } } | null;
 
 const mockAuthContext: {
@@ -49,13 +50,19 @@ jest.mock('./client-functions', () => ({
 }));
 
 jest.mock('./offline-attendance', () => {
-	const actual = jest.requireActual<typeof import('./offline-attendance')>('./offline-attendance');
+	const actual =
+		jest.requireActual<typeof import('./offline-attendance')>('./offline-attendance');
 
 	return {
 		...actual,
-		flushPendingAttendanceQueue: (...args: unknown[]) => mockFlushPendingAttendanceQueue(...args),
+		flushPendingAttendanceQueue: (...args: unknown[]) =>
+			mockFlushPendingAttendanceQueue(...args),
 	};
 });
+
+jest.mock('./settings-access-guard', () => ({
+	clearSettingsAccessGrants: (...args: unknown[]) => mockClearSettingsAccessGrants(...args),
+}));
 
 jest.mock('@/providers/auth-provider', () => ({
 	useAuthContext: () => mockAuthContext,
@@ -72,7 +79,7 @@ function DeviceIdProbe(): JSX.Element {
 	return <Text>{isHydrated ? (settings?.deviceId ?? 'no-device') : 'loading'}</Text>;
 }
 
-	describe('DeviceProvider heartbeat recovery', () => {
+describe('DeviceProvider heartbeat recovery', () => {
 	beforeEach(() => {
 		jest.useFakeTimers();
 		jest.spyOn(console, 'warn').mockImplementation(() => undefined);
@@ -92,6 +99,7 @@ function DeviceIdProbe(): JSX.Element {
 		mockFlushPendingAttendanceQueue.mockReset();
 		mockNetInfoFetch.mockReset();
 		mockNetInfoAddEventListener.mockReset();
+		mockClearSettingsAccessGrants.mockReset();
 		mockNetInfoFetch.mockResolvedValue({ isConnected: true, isInternetReachable: true });
 		mockNetInfoAddEventListener.mockImplementation(() => jest.fn());
 		mockAuthContext.session = { session: { id: 'session-1' } };
@@ -134,6 +142,7 @@ function DeviceIdProbe(): JSX.Element {
 		await waitFor(() => {
 			expect(mockDeleteItemAsync).toHaveBeenCalledWith('sen-checkin_device_settings');
 		});
+		expect(mockClearSettingsAccessGrants).toHaveBeenCalledTimes(1);
 
 		expect(mockRequestReauth).toHaveBeenCalledWith({
 			forceLock: true,
@@ -205,7 +214,10 @@ function DeviceIdProbe(): JSX.Element {
 		});
 
 		const listener = mockNetInfoAddEventListener.mock.calls[0]?.[0] as
-			| ((state: { isConnected: boolean | null; isInternetReachable?: boolean | null }) => void)
+			| ((state: {
+					isConnected: boolean | null;
+					isInternetReachable?: boolean | null;
+			  }) => void)
 			| undefined;
 
 		expect(listener).toBeDefined();

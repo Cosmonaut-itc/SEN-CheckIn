@@ -325,7 +325,7 @@ describe('ScannerScreen settings PIN gate', () => {
 	it('navigates immediately when the API says no settings PIN is required', async () => {
 		mockFetchDeviceSettingsPinStatus.mockResolvedValue({
 			deviceId: 'device-1',
-			mode: 'DISABLED',
+			mode: 'GLOBAL',
 			pinRequired: false,
 			source: 'NONE',
 			globalPinConfigured: false,

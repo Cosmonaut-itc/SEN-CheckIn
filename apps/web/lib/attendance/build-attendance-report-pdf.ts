@@ -1,11 +1,4 @@
-import {
-	PDFDocument,
-	PageSizes,
-	StandardFonts,
-	rgb,
-	type PDFFont,
-	type PDFPage,
-} from 'pdf-lib';
+import { PDFDocument, PageSizes, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
 
 import type { AttendanceEmployeePdfGroup } from '@/app/(dashboard)/attendance/attendance-export-helpers';
 
@@ -20,6 +13,8 @@ export interface AttendanceReportTableLabels {
 	day: string;
 	entry: string;
 	exit: string;
+	mealBreak: string;
+	incompleteReason: string;
 	workHours: string;
 	signature: string;
 }
@@ -85,6 +80,8 @@ const DEFAULT_ATTENDANCE_REPORT_LABELS: AttendanceReportLabels = {
 		day: 'Día',
 		entry: 'Entrada',
 		exit: 'Salida',
+		mealBreak: 'Comida',
+		incompleteReason: 'Motivo',
 		workHours: 'Horas trabajadas',
 		signature: 'Firma',
 	},
@@ -162,11 +159,13 @@ function fitTextToWidth(text: string, font: PDFFont, fontSize: number, maxWidth:
  */
 function getAttendanceTableColumns(labels: AttendanceReportLabels): AttendanceTableColumn[] {
 	return [
-		{ label: labels.tableHeaders.day, width: 88, alignment: 'left' },
-		{ label: labels.tableHeaders.entry, width: 86, alignment: 'left' },
-		{ label: labels.tableHeaders.exit, width: 86, alignment: 'left' },
-		{ label: labels.tableHeaders.workHours, width: 116, alignment: 'center' },
-		{ label: labels.tableHeaders.signature, width: 140, alignment: 'center' },
+		{ label: labels.tableHeaders.day, width: 70, alignment: 'left' },
+		{ label: labels.tableHeaders.entry, width: 64, alignment: 'left' },
+		{ label: labels.tableHeaders.exit, width: 64, alignment: 'left' },
+		{ label: labels.tableHeaders.mealBreak, width: 66, alignment: 'center' },
+		{ label: labels.tableHeaders.workHours, width: 82, alignment: 'center' },
+		{ label: labels.tableHeaders.incompleteReason, width: 122, alignment: 'left' },
+		{ label: labels.tableHeaders.signature, width: 48, alignment: 'center' },
 	];
 }
 
@@ -190,16 +189,7 @@ function drawTextLine(
 		textColor?: ReturnType<typeof rgb>;
 	},
 ): void {
-	const {
-		x,
-		y,
-		width,
-		text,
-		font,
-		fontSize,
-		alignment,
-		textColor = TEXT_COLOR,
-	} = options;
+	const { x, y, width, text, font, fontSize, alignment, textColor = TEXT_COLOR } = options;
 
 	const fittedText = fitTextToWidth(text, font, fontSize, width);
 	const textWidth = font.widthOfTextAtSize(fittedText, fontSize);
@@ -360,7 +350,8 @@ function drawEmployeeSectionHeader(
 	const contentWidth = width - PAGE_MARGIN * 2;
 	const employeeName =
 		group.employeeName.trim().length > 0 ? group.employeeName : labels.missingEmployeeName;
-	const employeeId = group.employeeId.trim().length > 0 ? group.employeeId : labels.missingEmployeeId;
+	const employeeId =
+		group.employeeId.trim().length > 0 ? group.employeeId : labels.missingEmployeeId;
 
 	drawTextLine(page, {
 		x: PAGE_MARGIN,
@@ -453,7 +444,17 @@ function drawAttendanceRow(
 ): number {
 	let columnX = PAGE_MARGIN;
 	const tableColumns = getAttendanceTableColumns(labels);
-	const values = [row.day, row.firstEntry, row.lastExit, row.totalHours, ''];
+	const mealBreakText =
+		row.mealBreakMinutes !== undefined ? formatWorkedMinutes(row.mealBreakMinutes) : '';
+	const values = [
+		row.day,
+		row.firstEntry,
+		row.lastExit,
+		mealBreakText,
+		row.totalHours,
+		row.incompleteReason ?? '',
+		'',
+	];
 
 	for (let index = 0; index < tableColumns.length; index += 1) {
 		const column = tableColumns[index];
@@ -494,7 +495,7 @@ function drawTotalRow(
 ): number {
 	let columnX = PAGE_MARGIN;
 	const tableColumns = getAttendanceTableColumns(labels);
-	const values = [labels.totalLabel, '', '', formatWorkedMinutes(totalWorkedMinutes), ''];
+	const values = [labels.totalLabel, '', '', '', formatWorkedMinutes(totalWorkedMinutes), '', ''];
 
 	for (let index = 0; index < tableColumns.length; index += 1) {
 		const column = tableColumns[index];
@@ -544,7 +545,15 @@ export async function buildAttendanceReportPdf(
 			cursorY = drawReportHeader(page, font, fontBold, input.title, periodLabel, labels);
 		}
 
-		cursorY = drawEmployeeSectionHeader(page, font, fontBold, group, periodLabel, labels, cursorY);
+		cursorY = drawEmployeeSectionHeader(
+			page,
+			font,
+			fontBold,
+			group,
+			periodLabel,
+			labels,
+			cursorY,
+		);
 
 		for (const [rowIndex, row] of group.rows.entries()) {
 			const isLastRow = rowIndex === group.rows.length - 1;
@@ -555,7 +564,15 @@ export async function buildAttendanceReportPdf(
 			if (cursorY - minimumRowHeight < PAGE_MARGIN) {
 				page = pdfDocument.addPage(PageSizes.Letter);
 				cursorY = drawReportHeader(page, font, fontBold, input.title, periodLabel, labels);
-				cursorY = drawEmployeeSectionHeader(page, font, fontBold, group, periodLabel, labels, cursorY);
+				cursorY = drawEmployeeSectionHeader(
+					page,
+					font,
+					fontBold,
+					group,
+					periodLabel,
+					labels,
+					cursorY,
+				);
 			}
 
 			cursorY = drawAttendanceRow(page, font, row, labels, cursorY);
@@ -564,7 +581,15 @@ export async function buildAttendanceReportPdf(
 		if (cursorY - TABLE_TOTAL_HEIGHT < PAGE_MARGIN) {
 			page = pdfDocument.addPage(PageSizes.Letter);
 			cursorY = drawReportHeader(page, font, fontBold, input.title, periodLabel, labels);
-			cursorY = drawEmployeeSectionHeader(page, font, fontBold, group, periodLabel, labels, cursorY);
+			cursorY = drawEmployeeSectionHeader(
+				page,
+				font,
+				fontBold,
+				group,
+				periodLabel,
+				labels,
+				cursorY,
+			);
 		}
 
 		cursorY = drawTotalRow(page, fontBold, group.totalWorkedMinutes, labels, cursorY);

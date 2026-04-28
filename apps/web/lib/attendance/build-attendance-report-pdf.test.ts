@@ -187,6 +187,8 @@ describe('buildAttendanceReportPdf', () => {
 				day: 'Fecha',
 				entry: 'Entrada',
 				exit: 'Salida',
+				mealBreak: 'Comida',
+				incompleteReason: 'Motivo',
 				workHours: 'Horas',
 				signature: 'Firma',
 			},
@@ -218,6 +220,8 @@ describe('buildAttendanceReportPdf', () => {
 		expect(documentText).toContain('Fecha');
 		expect(documentText).toContain('Entrada');
 		expect(documentText).toContain('Salida');
+		expect(documentText).toContain('Comida');
+		expect(documentText).toContain('Motivo');
 		expect(documentText).toContain('Horas');
 		expect(documentText).toContain('Firma');
 		expect(documentText).toContain('Suma');
@@ -227,6 +231,47 @@ describe('buildAttendanceReportPdf', () => {
 		expect(documentText).not.toContain('Día');
 		expect(documentText).not.toContain('Horas trabajadas');
 		expect(documentText).not.toContain('Total');
+	});
+
+	it('renders meal break and incomplete reason columns for daily rows', async () => {
+		const pdfBytes = await buildAttendanceReportPdf({
+			title: 'Reporte de asistencia',
+			dateRange: {
+				startDateKey: '2026-04-26',
+				endDateKey: '2026-04-26',
+			},
+			groups: [
+				buildAttendanceGroup({
+					totalWorkedMinutes: 329,
+					rows: [
+						{
+							day: '26/04/2026',
+							firstEntry: '09:07',
+							lastExit: '15:04',
+							mealBreakMinutes: 28,
+							totalHours: '05:29',
+							workMinutes: 329,
+						},
+						{
+							day: '27/04/2026',
+							firstEntry: '09:07',
+							lastExit: '15:04',
+							totalHours: 'Incompleto',
+							workMinutes: null,
+							incompleteReason: 'Falta regreso de comida',
+						},
+					],
+				}),
+			],
+		});
+
+		const pageTexts = await extractPdfPageTexts(pdfBytes);
+		const documentText = pageTexts.join(' ');
+
+		expect(documentText).toContain('Comida');
+		expect(documentText).toContain('Motivo');
+		expect(documentText).toContain('00:28');
+		expect(documentText).toContain('Falta regreso de comida');
 	});
 
 	it('builds a valid PDF with the title, range, employee block, headers, and total row', async () => {

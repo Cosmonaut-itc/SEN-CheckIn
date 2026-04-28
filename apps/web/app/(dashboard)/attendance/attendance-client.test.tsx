@@ -31,6 +31,7 @@ const mockFetchAttendanceRecords = vi.fn();
 const mockFetchEmployeeById = vi.fn();
 const mockFetchEmployeesList = vi.fn();
 const mockFetchLocationsList = vi.fn();
+const mockFetchPayrollSettings = vi.fn();
 const mockFetchServerTime = vi.fn();
 const mockFetchVacationRequestsList = vi.fn();
 let expectedPdfBytes: Uint8Array | null = null;
@@ -145,6 +146,7 @@ vi.mock('@/lib/client-functions', async (importOriginal) => {
 		fetchEmployeeById: (...args: unknown[]) => mockFetchEmployeeById(...args),
 		fetchEmployeesList: (...args: unknown[]) => mockFetchEmployeesList(...args),
 		fetchLocationsList: (...args: unknown[]) => mockFetchLocationsList(...args),
+		fetchPayrollSettings: (...args: unknown[]) => mockFetchPayrollSettings(...args),
 		fetchServerTime: (...args: unknown[]) => mockFetchServerTime(...args),
 		fetchVacationRequestsList: (...args: unknown[]) => mockFetchVacationRequestsList(...args),
 	};
@@ -210,6 +212,7 @@ describe('AttendancePageClient', () => {
 		mockFetchEmployeeById.mockReset();
 		mockFetchEmployeesList.mockReset();
 		mockFetchLocationsList.mockReset();
+		mockFetchPayrollSettings.mockReset();
 		mockFetchServerTime.mockReset();
 		mockFetchVacationRequestsList.mockReset();
 		mockBuildAttendanceReportPdf.mockReset();
@@ -236,6 +239,7 @@ describe('AttendancePageClient', () => {
 			pagination: { total: 0, limit: 100, offset: 0 },
 		});
 		mockFetchEmployeeById.mockResolvedValue(null);
+		mockFetchPayrollSettings.mockResolvedValue(null);
 		mockFetchServerTime.mockResolvedValue(new Date('2026-04-24T16:30:00.000Z'));
 		mockFetchVacationRequestsList.mockResolvedValue({
 			data: [],
@@ -820,11 +824,98 @@ describe('AttendancePageClient', () => {
 						day: 'Día',
 						entry: 'Entrada',
 						exit: 'Salida',
+						mealBreak: 'Comida',
+						incompleteReason: 'Motivo',
 						workHours: 'Horas trabajadas',
 						signature: 'Firma',
 					},
 					totalLabel: 'Total',
 				},
+			}),
+		);
+	});
+
+	it('includes automatic lunch break minutes in exported PDF groups when payroll settings enable them', async () => {
+		const anchorClickSpy = vi
+			.spyOn(HTMLAnchorElement.prototype, 'click')
+			.mockImplementation(() => undefined);
+
+		mockFetchPayrollSettings.mockResolvedValue({
+			autoDeductLunchBreak: true,
+			lunchBreakMinutes: 60,
+			lunchBreakThresholdHours: 6,
+		});
+		mockFetchAttendanceRecords.mockResolvedValue({
+			data: [
+				{
+					id: 'attendance-1',
+					employeeId: 'EMP-001',
+					employeeName: 'Ada Lovelace',
+					deviceId: 'device-1',
+					deviceLocationId: 'location-1',
+					deviceLocationName: 'Oficina principal',
+					timestamp: new Date('2026-02-23T14:00:00.000Z'),
+					type: 'CHECK_IN' as const,
+					checkOutReason: null,
+					metadata: null,
+					createdAt: new Date('2026-02-23T14:00:00.000Z'),
+					updatedAt: new Date('2026-02-23T14:00:00.000Z'),
+				},
+				{
+					id: 'attendance-2',
+					employeeId: 'EMP-001',
+					employeeName: 'Ada Lovelace',
+					deviceId: 'device-1',
+					deviceLocationId: 'location-1',
+					deviceLocationName: 'Oficina principal',
+					timestamp: new Date('2026-02-23T22:00:00.000Z'),
+					type: 'CHECK_OUT' as const,
+					checkOutReason: 'REGULAR' as const,
+					metadata: null,
+					createdAt: new Date('2026-02-23T22:00:00.000Z'),
+					updatedAt: new Date('2026-02-23T22:00:00.000Z'),
+				},
+			],
+			pagination: { total: 2, limit: 10, offset: 0 },
+		});
+
+		renderAttendanceClient();
+
+		await waitFor(() => {
+			expect(mockFetchAttendanceRecords).toHaveBeenCalled();
+		});
+
+		const exportButton = screen.getByRole('button', { name: 'Descargar PDF' });
+
+		await waitFor(() => {
+			expect(exportButton).toBeEnabled();
+		});
+
+		fireEvent.click(exportButton);
+
+		await waitFor(() => {
+			expect(anchorClickSpy).toHaveBeenCalled();
+		});
+
+		expect(mockBuildAttendanceReportPdf).toHaveBeenCalledWith(
+			expect.objectContaining({
+				groups: [
+					{
+						employeeId: 'EMP-001',
+						employeeName: 'Ada Lovelace',
+						totalWorkedMinutes: 420,
+						rows: [
+							{
+								day: '23/02/2026',
+								firstEntry: '08:00',
+								lastExit: '16:00',
+								totalHours: '07:00',
+								workMinutes: 420,
+								mealBreakMinutes: 60,
+							},
+						],
+					},
+				],
 			}),
 		);
 	});

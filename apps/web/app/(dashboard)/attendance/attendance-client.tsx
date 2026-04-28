@@ -61,6 +61,7 @@ import {
 	fetchEmployeesList,
 	fetchAttendanceRecords,
 	fetchLocationsList,
+	fetchPayrollSettings,
 	fetchServerTime,
 	fetchVacationRequestsList,
 	type AttendanceRecord,
@@ -1445,7 +1446,7 @@ export function AttendancePageClient({
 			const spilloverStartDateKey = addDaysToDateKey(exportStartDateKey, -1);
 			const spilloverEndDateKey = addDaysToDateKey(exportEndDateKey, 1);
 			const includeVirtualDays = typeFilter === 'both' && !normalizedOffsiteDayKind;
-			const [exportRecords, exportEmployees, vacationRequests, serverTime] =
+			const [exportRecords, exportEmployees, vacationRequests, payrollSettings, serverTime] =
 				await Promise.all([
 					fetchAllAttendanceRecords({
 						fromDate: getUtcDayRangeFromDateKey(
@@ -1481,6 +1482,9 @@ export function AttendancePageClient({
 								employeeId: employeeFilterId,
 							})
 						: Promise.resolve([]),
+					organizationId
+						? fetchPayrollSettings(organizationId).catch(() => null)
+						: Promise.resolve(null),
 					includeVirtualDays ? fetchAttendanceExportServerTime() : Promise.resolve(null),
 				]);
 
@@ -1513,6 +1517,12 @@ export function AttendancePageClient({
 				incomplete: t('pdf.values.incomplete'),
 				noEntry: t('pdf.values.noEntry'),
 				noExit: t('pdf.values.noExit'),
+				incompleteReasons: {
+					invalidWorkedSpan: t('pdf.values.incompleteReasons.invalidWorkedSpan'),
+					missingEntry: t('pdf.values.incompleteReasons.missingEntry'),
+					missingExit: t('pdf.values.incompleteReasons.missingExit'),
+					missingMealReturn: t('pdf.values.incompleteReasons.missingMealReturn'),
+				},
 				payrollCutoffAssumed: t('pdf.values.payrollCutoffAssumed'),
 				vacation: t('pdf.values.vacation'),
 				workOffsite: t('pdf.values.workOffsite'),
@@ -1523,6 +1533,13 @@ export function AttendancePageClient({
 					endDateKey: exportEndDateKey,
 				},
 				labels: summaryLabels,
+				automaticLunchBreak: payrollSettings
+					? {
+							enabled: payrollSettings.autoDeductLunchBreak,
+							minutes: payrollSettings.lunchBreakMinutes,
+							thresholdHours: payrollSettings.lunchBreakThresholdHours,
+						}
+					: undefined,
 				overnightEligibleEmployeeIds: getOvernightEligibleEmployeeIds(exportEmployees),
 				timeZone: attendanceExportTimeZone,
 				virtualDays,
@@ -1551,6 +1568,8 @@ export function AttendancePageClient({
 						day: t('pdf.headers.date'),
 						entry: t('pdf.headers.firstEntry'),
 						exit: t('pdf.headers.lastExit'),
+						mealBreak: t('pdf.headers.mealBreak'),
+						incompleteReason: t('pdf.headers.incompleteReason'),
 						workHours: t('pdf.headers.totalHours'),
 						signature: t('pdf.headers.signature'),
 					},

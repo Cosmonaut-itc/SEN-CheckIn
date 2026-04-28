@@ -90,6 +90,11 @@ export type DeviceStatus = 'ONLINE' | 'OFFLINE' | 'MAINTENANCE';
 export type AttendanceType = 'CHECK_IN' | 'CHECK_OUT' | 'CHECK_OUT_AUTHORIZED' | 'WORK_OFFSITE';
 
 /**
+ * Check-out reason enum values.
+ */
+export type CheckOutReason = 'REGULAR' | 'LUNCH_BREAK' | 'PERSONAL';
+
+/**
  * RH day classification for offsite records.
  */
 export type OffsiteDayKind = 'LABORABLE' | 'NO_LABORABLE';
@@ -204,6 +209,7 @@ export interface AttendanceRecord {
 	deviceLocationName?: string | null;
 	timestamp: Date;
 	type: AttendanceType;
+	checkOutReason?: CheckOutReason | null;
 	offsiteDateKey?: string | null;
 	offsiteDayKind?: OffsiteDayKind | null;
 	offsiteReason?: string | null;

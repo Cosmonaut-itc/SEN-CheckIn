@@ -15,6 +15,12 @@ const TEST_LABELS: AttendanceSummaryLabels = {
 	incomplete: 'Incompleto',
 	noEntry: 'Sin entrada',
 	noExit: 'Sin salida',
+	incompleteReasons: {
+		invalidWorkedSpan: 'Turno excede el límite',
+		missingEntry: 'Falta entrada',
+		missingExit: 'Falta salida',
+		missingMealReturn: 'Falta regreso de comida',
+	},
 	payrollCutoffAssumed: 'Asistencia por nómina',
 	vacation: 'Vacaciones',
 	workOffsite: 'Fuera de oficina',
@@ -25,6 +31,7 @@ interface BuildAttendanceRecordArgs {
 	employeeName: string;
 	timestamp: string;
 	type: AttendanceRecord['type'];
+	checkOutReason?: AttendanceRecord['checkOutReason'];
 	offsiteDateKey?: string | null;
 	offsiteDayKind?: AttendanceRecord['offsiteDayKind'];
 }
@@ -47,6 +54,7 @@ function buildAttendanceRecord(args: BuildAttendanceRecordArgs): AttendanceRecor
 		deviceLocationName: 'Matriz',
 		timestamp,
 		type: args.type,
+		checkOutReason: args.checkOutReason ?? null,
 		offsiteDateKey: args.offsiteDateKey ?? null,
 		offsiteDayKind: args.offsiteDayKind ?? null,
 		offsiteReason: null,
@@ -104,6 +112,7 @@ describe('aggregateAttendanceByPersonDay', () => {
 					employeeName: 'Juan',
 					timestamp: '2026-04-10T18:30:00.000Z',
 					type: 'CHECK_OUT',
+					checkOutReason: 'LUNCH_BREAK',
 				}),
 				buildAttendanceRecord({
 					employeeId: 'emp-1',
@@ -116,6 +125,7 @@ describe('aggregateAttendanceByPersonDay', () => {
 					employeeName: 'Juan',
 					timestamp: '2026-04-10T23:30:00.000Z',
 					type: 'CHECK_OUT',
+					checkOutReason: 'REGULAR',
 				}),
 			],
 			{ labels: TEST_LABELS, timeZone: TEST_TIME_ZONE },
@@ -125,6 +135,190 @@ describe('aggregateAttendanceByPersonDay', () => {
 		expect(rows[0]?.firstEntry).toBe('08:30');
 		expect(rows[0]?.lastExit).toBe('17:30');
 		expect(rows[0]?.totalHours).toBe('08:00');
+	});
+
+	it('discounts a duplicated lunch check-out from the worked total and reports meal time', () => {
+		const rows = buildAttendanceEmployeePdfSummaryRows(
+			[
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'María',
+					timestamp: '2026-04-26T15:07:00.000Z',
+					type: 'CHECK_IN',
+				}),
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'María',
+					timestamp: '2026-04-26T16:03:00.000Z',
+					type: 'CHECK_OUT',
+					checkOutReason: 'LUNCH_BREAK',
+				}),
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'María',
+					timestamp: '2026-04-26T16:31:00.000Z',
+					type: 'CHECK_OUT',
+					checkOutReason: 'LUNCH_BREAK',
+				}),
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'María',
+					timestamp: '2026-04-26T21:04:00.000Z',
+					type: 'CHECK_OUT',
+					checkOutReason: 'REGULAR',
+				}),
+			],
+			{ labels: TEST_LABELS, timeZone: TEST_TIME_ZONE },
+		);
+
+		expect(rows).toEqual([
+			{
+				employeeName: 'María',
+				employeeId: 'emp-1',
+				date: '26/04/2026',
+				firstEntry: '09:07',
+				lastExit: '15:04',
+				totalHours: '05:29',
+				workMinutes: 329,
+				mealBreakMinutes: 28,
+			},
+		]);
+	});
+
+	it('applies automatic lunch deduction as an informational meal break when configured', () => {
+		const rows = buildAttendanceEmployeePdfSummaryRows(
+			[
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Juan',
+					timestamp: '2026-04-10T14:00:00.000Z',
+					type: 'CHECK_IN',
+				}),
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Juan',
+					timestamp: '2026-04-10T22:00:00.000Z',
+					type: 'CHECK_OUT',
+				}),
+			],
+			{
+				automaticLunchBreak: {
+					enabled: true,
+					minutes: 60,
+					thresholdHours: 6,
+				},
+				labels: TEST_LABELS,
+				timeZone: TEST_TIME_ZONE,
+			},
+		);
+
+		expect(rows).toEqual([
+			{
+				employeeName: 'Juan',
+				employeeId: 'emp-1',
+				date: '10/04/2026',
+				firstEntry: '08:00',
+				lastExit: '16:00',
+				totalHours: '07:00',
+				workMinutes: 420,
+				mealBreakMinutes: 60,
+			},
+		]);
+	});
+
+	it('reports legacy checkout gaps as explicit meal breaks without applying an extra automatic deduction', () => {
+		const rows = buildAttendanceEmployeePdfSummaryRows(
+			[
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Juan',
+					timestamp: '2026-04-10T14:00:00.000Z',
+					type: 'CHECK_IN',
+				}),
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Juan',
+					timestamp: '2026-04-10T18:00:00.000Z',
+					type: 'CHECK_OUT',
+				}),
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Juan',
+					timestamp: '2026-04-10T19:00:00.000Z',
+					type: 'CHECK_IN',
+				}),
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Juan',
+					timestamp: '2026-04-10T23:00:00.000Z',
+					type: 'CHECK_OUT',
+					checkOutReason: 'REGULAR',
+				}),
+			],
+			{
+				automaticLunchBreak: {
+					enabled: true,
+					minutes: 60,
+					thresholdHours: 6,
+				},
+				labels: TEST_LABELS,
+				timeZone: TEST_TIME_ZONE,
+			},
+		);
+
+		expect(rows).toEqual([
+			{
+				employeeName: 'Juan',
+				employeeId: 'emp-1',
+				date: '10/04/2026',
+				firstEntry: '08:00',
+				lastExit: '17:00',
+				totalHours: '08:00',
+				workMinutes: 480,
+				mealBreakMinutes: 60,
+			},
+		]);
+	});
+
+	it('marks a regular exit after lunch as incomplete when the meal return is missing', () => {
+		const rows = buildAttendanceEmployeePdfSummaryRows(
+			[
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'María',
+					timestamp: '2026-04-26T15:07:00.000Z',
+					type: 'CHECK_IN',
+				}),
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'María',
+					timestamp: '2026-04-26T16:03:00.000Z',
+					type: 'CHECK_OUT',
+					checkOutReason: 'LUNCH_BREAK',
+				}),
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'María',
+					timestamp: '2026-04-26T21:04:00.000Z',
+					type: 'CHECK_OUT',
+					checkOutReason: 'REGULAR',
+				}),
+			],
+			{ labels: TEST_LABELS, timeZone: TEST_TIME_ZONE },
+		);
+
+		expect(rows).toEqual([
+			{
+				employeeName: 'María',
+				employeeId: 'emp-1',
+				date: '26/04/2026',
+				firstEntry: '09:07',
+				lastExit: '15:04',
+				totalHours: 'Incompleto',
+				workMinutes: null,
+				incompleteReason: 'Falta regreso de comida',
+			},
+		]);
 	});
 
 	it('ignores duplicate check-ins between the first entry and the final exit', () => {
@@ -182,6 +376,22 @@ describe('aggregateAttendanceByPersonDay', () => {
 		expect(rows[0]?.totalHours).toBe('Incompleto');
 	});
 
+	it('adds a reason when a worked day is incomplete because the exit is missing', () => {
+		const rows = buildAttendanceEmployeePdfSummaryRows(
+			[
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Juan',
+					timestamp: '2026-04-10T14:30:00.000Z',
+					type: 'CHECK_IN',
+				}),
+			],
+			{ labels: TEST_LABELS, timeZone: TEST_TIME_ZONE },
+		);
+
+		expect(rows[0]?.incompleteReason).toBe('Falta salida');
+	});
+
 	it('shows a missing entry as incomplete', () => {
 		const rows = aggregateAttendanceByPersonDay(
 			[
@@ -199,6 +409,22 @@ describe('aggregateAttendanceByPersonDay', () => {
 		expect(rows[0]?.firstEntry).toBe('Sin entrada');
 		expect(rows[0]?.lastExit).toBe('17:30');
 		expect(rows[0]?.totalHours).toBe('Incompleto');
+	});
+
+	it('adds a reason when a worked day is incomplete because the entry is missing', () => {
+		const rows = buildAttendanceEmployeePdfSummaryRows(
+			[
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Juan',
+					timestamp: '2026-04-10T23:30:00.000Z',
+					type: 'CHECK_OUT',
+				}),
+			],
+			{ labels: TEST_LABELS, timeZone: TEST_TIME_ZONE },
+		);
+
+		expect(rows[0]?.incompleteReason).toBe('Falta entrada');
 	});
 
 	it('keeps an authorized check-out visible without closing worked hours', () => {
@@ -809,6 +1035,7 @@ describe('buildAttendanceEmployeePdfGroups', () => {
 					lastExit: 'Sin salida',
 					totalHours: 'Incompleto',
 					workMinutes: null,
+					incompleteReason: 'Falta salida',
 				},
 			],
 		});
@@ -1013,6 +1240,44 @@ describe('buildAttendanceEmployeePdfGroups', () => {
 				lastExit: 'Asistencia por nómina',
 				totalHours: '08:00',
 				workMinutes: 480,
+			},
+		]);
+	});
+
+	it('applies automatic lunch deduction to payroll cutoff virtual days', () => {
+		const rows = buildAttendanceEmployeePdfSummaryRows([], {
+			automaticLunchBreak: {
+				enabled: true,
+				minutes: 60,
+				thresholdHours: 6,
+			},
+			dateRange: {
+				startDateKey: '2026-04-24',
+				endDateKey: '2026-04-24',
+			},
+			labels: TEST_LABELS,
+			timeZone: TEST_TIME_ZONE,
+			virtualDays: [
+				{
+					employeeId: 'emp-cutoff',
+					employeeName: 'Carlos Corte',
+					dateKey: '2026-04-24',
+					kind: 'PAYROLL_CUTOFF_ASSUMED',
+					workMinutes: 480,
+				},
+			],
+		});
+
+		expect(rows).toEqual([
+			{
+				employeeName: 'Carlos Corte',
+				employeeId: 'emp-cutoff',
+				date: '24/04/2026',
+				firstEntry: 'Asistencia por nómina',
+				lastExit: 'Asistencia por nómina',
+				totalHours: '07:00',
+				workMinutes: 420,
+				mealBreakMinutes: 60,
 			},
 		]);
 	});

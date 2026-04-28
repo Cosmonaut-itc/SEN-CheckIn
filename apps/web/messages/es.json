@@ -1987,6 +1987,8 @@
 				"date": "Día",
 				"firstEntry": "Entrada",
 				"lastExit": "Salida",
+				"mealBreak": "Comida",
+				"incompleteReason": "Motivo",
 				"totalHours": "Horas trabajadas",
 				"signature": "Firma"
 			},
@@ -2001,6 +2003,12 @@
 				"incomplete": "Incompleto",
 				"noEntry": "Sin entrada",
 				"noExit": "Sin salida",
+				"incompleteReasons": {
+					"invalidWorkedSpan": "Turno excede el límite",
+					"missingEntry": "Falta entrada",
+					"missingExit": "Falta salida",
+					"missingMealReturn": "Falta regreso de comida"
+				},
 				"payrollCutoffAssumed": "Asistencia por nómina",
 				"vacation": "Vacaciones",
 				"workOffsite": "Fuera de oficina"

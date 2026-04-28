@@ -15,6 +15,8 @@ export interface AttendanceSummaryCsvRow {
 
 export interface AttendanceSummaryPdfRow extends AttendanceSummaryCsvRow {
 	workMinutes: number | null;
+	mealBreakMinutes?: number;
+	incompleteReason?: string;
 }
 
 export interface AttendanceEmployeePdfRow {
@@ -23,6 +25,8 @@ export interface AttendanceEmployeePdfRow {
 	lastExit: string;
 	totalHours: string;
 	workMinutes: number | null;
+	mealBreakMinutes?: number;
+	incompleteReason?: string;
 }
 
 export interface AttendanceEmployeePdfGroup {
@@ -36,6 +40,12 @@ export interface AttendanceSummaryLabels {
 	incomplete: string;
 	noEntry: string;
 	noExit: string;
+	incompleteReasons: {
+		invalidWorkedSpan: string;
+		missingEntry: string;
+		missingExit: string;
+		missingMealReturn: string;
+	};
 	payrollCutoffAssumed: string;
 	vacation: string;
 	workOffsite: string;
@@ -52,6 +62,11 @@ export interface AttendanceVirtualDay {
 export interface AggregateAttendanceOptions {
 	timeZone: string;
 	labels: AttendanceSummaryLabels;
+	automaticLunchBreak?: {
+		enabled: boolean;
+		minutes: number;
+		thresholdHours: number;
+	};
 	dateRange?: {
 		startDateKey: string;
 		endDateKey: string;
@@ -71,6 +86,17 @@ interface AttendanceSummaryResult {
 	dateKey: string;
 	row: AttendanceSummaryPdfRow;
 	virtualKind?: AttendanceVirtualDay['kind'];
+}
+
+type IncompleteReasonKey =
+	| 'invalidWorkedSpan'
+	| 'missingEntry'
+	| 'missingExit'
+	| 'missingMealReturn';
+
+interface WorkedMinutesWithMealBreak {
+	workMinutes: number;
+	mealBreakMinutes?: number;
 }
 
 /**
@@ -125,6 +151,56 @@ function formatWorkedMinutes(totalMinutes: number): string {
 	const hours = Math.floor(totalMinutes / 60);
 	const minutes = totalMinutes % 60;
 	return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+/**
+ * Resolves the elapsed whole minutes between two timestamps.
+ *
+ * @param startAt - Start timestamp
+ * @param endAt - End timestamp
+ * @returns Non-negative elapsed minutes
+ */
+function diffMinutes(startAt: Date, endAt: Date): number {
+	return Math.max(0, Math.round((endAt.getTime() - startAt.getTime()) / 60_000));
+}
+
+/**
+ * Applies configured automatic lunch deduction to a complete worked total.
+ *
+ * @param workedMinutes - Worked minutes before any automatic lunch deduction
+ * @param existingMealBreakMinutes - Explicit meal break minutes already recorded
+ * @param automaticLunchBreak - Automatic lunch deduction settings
+ * @returns Worked and meal break minutes for reporting
+ */
+function applyAutomaticLunchBreak(args: {
+	workedMinutes: number;
+	existingMealBreakMinutes: number;
+	automaticLunchBreak?: AggregateAttendanceOptions['automaticLunchBreak'];
+}): WorkedMinutesWithMealBreak {
+	const automaticLunchBreak = args.automaticLunchBreak;
+	if (
+		args.existingMealBreakMinutes > 0 ||
+		!automaticLunchBreak?.enabled ||
+		automaticLunchBreak.minutes <= 0 ||
+		args.workedMinutes <= automaticLunchBreak.thresholdHours * 60
+	) {
+		return {
+			workMinutes: args.workedMinutes,
+			...(args.existingMealBreakMinutes > 0
+				? { mealBreakMinutes: args.existingMealBreakMinutes }
+				: {}),
+		};
+	}
+
+	const automaticMealBreakMinutes = Math.min(
+		args.workedMinutes,
+		Math.max(0, Math.round(automaticLunchBreak.minutes)),
+	);
+
+	return {
+		workMinutes: Math.max(0, args.workedMinutes - automaticMealBreakMinutes),
+		mealBreakMinutes: automaticMealBreakMinutes,
+	};
 }
 
 /**
@@ -330,10 +406,26 @@ function buildWorkedSummaryRow(
 		(left, right) => new Date(left.timestamp).getTime() - new Date(right.timestamp).getTime(),
 	);
 	let openEntryAt: Date | null = null;
+	let openMealBreakAt: Date | null = null;
+	let mealReturnCandidateAt: Date | null = null;
+	let legacyBreakCandidateAt: Date | null = null;
 	let firstEntryAt: Date | null = null;
 	let lastExitAt: Date | null = null;
 	let totalWorkedMinutes = 0;
+	let totalMealBreakMinutes = 0;
 	let hasIncompletePair = false;
+	let incompleteReasonKey: IncompleteReasonKey | null = null;
+
+	/**
+	 * Marks the current row as incomplete using the first detected reason.
+	 *
+	 * @param reasonKey - Localized reason key
+	 * @returns void
+	 */
+	const markIncomplete = (reasonKey: IncompleteReasonKey): void => {
+		hasIncompletePair = true;
+		incompleteReasonKey ??= reasonKey;
+	};
 
 	for (const record of sortedRecords) {
 		const timestamp = new Date(record.timestamp);
@@ -341,6 +433,19 @@ function buildWorkedSummaryRow(
 		if (record.type === 'CHECK_IN') {
 			if (!firstEntryAt) {
 				firstEntryAt = timestamp;
+			}
+			if (openMealBreakAt) {
+				totalMealBreakMinutes += diffMinutes(openMealBreakAt, timestamp);
+				openMealBreakAt = null;
+				mealReturnCandidateAt = null;
+				openEntryAt = timestamp;
+				continue;
+			}
+			if (legacyBreakCandidateAt) {
+				totalMealBreakMinutes += diffMinutes(legacyBreakCandidateAt, timestamp);
+				legacyBreakCandidateAt = null;
+				openEntryAt = timestamp;
+				continue;
 			}
 			if (!openEntryAt) {
 				openEntryAt = timestamp;
@@ -350,37 +455,100 @@ function buildWorkedSummaryRow(
 
 		if (record.type === 'CHECK_OUT_AUTHORIZED') {
 			lastExitAt = timestamp;
+			legacyBreakCandidateAt = null;
 			continue;
 		}
 
 		if (record.type === 'CHECK_OUT') {
 			lastExitAt = timestamp;
-
-			if (!openEntryAt) {
-				if (!firstEntryAt && totalWorkedMinutes === 0) {
-					hasIncompletePair = true;
+			if (record.checkOutReason === 'LUNCH_BREAK') {
+				legacyBreakCandidateAt = null;
+				if (openMealBreakAt) {
+					mealReturnCandidateAt = timestamp;
+					continue;
 				}
+				if (!openEntryAt) {
+					if (!firstEntryAt && totalWorkedMinutes === 0) {
+						markIncomplete('missingEntry');
+					}
+					continue;
+				}
+
+				const workedMinutes = diffMinutes(openEntryAt, timestamp);
+				if (workedMinutes > MAX_WORKED_SPAN_MINUTES) {
+					markIncomplete('invalidWorkedSpan');
+					openEntryAt = null;
+					continue;
+				}
+
+				totalWorkedMinutes += workedMinutes;
+				openEntryAt = null;
+				openMealBreakAt = timestamp;
+				mealReturnCandidateAt = null;
 				continue;
 			}
 
-			const workedMinutes = Math.max(
-				0,
-				Math.round((timestamp.getTime() - openEntryAt.getTime()) / 60_000),
-			);
+			if (openMealBreakAt) {
+				legacyBreakCandidateAt = null;
+				if (!mealReturnCandidateAt) {
+					markIncomplete('missingMealReturn');
+					openMealBreakAt = null;
+					continue;
+				}
+
+				totalMealBreakMinutes += diffMinutes(openMealBreakAt, mealReturnCandidateAt);
+				const workedMinutes = diffMinutes(mealReturnCandidateAt, timestamp);
+				if (workedMinutes > MAX_WORKED_SPAN_MINUTES) {
+					markIncomplete('invalidWorkedSpan');
+					openMealBreakAt = null;
+					mealReturnCandidateAt = null;
+					continue;
+				}
+
+				totalWorkedMinutes += workedMinutes;
+				openMealBreakAt = null;
+				mealReturnCandidateAt = null;
+				continue;
+			}
+
+			if (!openEntryAt) {
+				if (!firstEntryAt && totalWorkedMinutes === 0) {
+					markIncomplete('missingEntry');
+				}
+				legacyBreakCandidateAt = null;
+				continue;
+			}
+
+			const workedMinutes = diffMinutes(openEntryAt, timestamp);
 			if (workedMinutes > MAX_WORKED_SPAN_MINUTES) {
-				hasIncompletePair = true;
+				markIncomplete('invalidWorkedSpan');
 				openEntryAt = null;
 				continue;
 			}
 
 			totalWorkedMinutes += workedMinutes;
 			openEntryAt = null;
+			legacyBreakCandidateAt = record.checkOutReason == null ? timestamp : null;
 		}
 	}
 
 	if (openEntryAt) {
-		hasIncompletePair = true;
+		markIncomplete('missingExit');
 	}
+	if (openMealBreakAt) {
+		markIncomplete('missingMealReturn');
+	}
+	const finalWorkedTotals = hasIncompletePair
+		? {
+				workMinutes: totalWorkedMinutes,
+				...(totalMealBreakMinutes > 0 ? { mealBreakMinutes: totalMealBreakMinutes } : {}),
+			}
+		: applyAutomaticLunchBreak({
+				workedMinutes: totalWorkedMinutes,
+				existingMealBreakMinutes: totalMealBreakMinutes,
+				automaticLunchBreak: options.automaticLunchBreak,
+			});
+	const finalMealBreakMinutes = finalWorkedTotals.mealBreakMinutes ?? 0;
 
 	return {
 		employeeName: group.employeeName,
@@ -394,8 +562,12 @@ function buildWorkedSummaryRow(
 			: options.labels.noExit,
 		totalHours: hasIncompletePair
 			? options.labels.incomplete
-			: formatWorkedMinutes(totalWorkedMinutes),
-		workMinutes: hasIncompletePair ? null : totalWorkedMinutes,
+			: formatWorkedMinutes(finalWorkedTotals.workMinutes),
+		workMinutes: hasIncompletePair ? null : finalWorkedTotals.workMinutes,
+		...(finalMealBreakMinutes > 0 ? { mealBreakMinutes: finalMealBreakMinutes } : {}),
+		...(incompleteReasonKey
+			? { incompleteReason: options.labels.incompleteReasons[incompleteReasonKey] }
+			: {}),
 	};
 }
 
@@ -422,6 +594,14 @@ function buildVirtualSummaryRow(
 		existingRow.firstEntry !== options.labels.noEntry
 			? existingRow.firstEntry
 			: fallbackLabel;
+	const workedMinutes =
+		virtualDay.kind === 'PAYROLL_CUTOFF_ASSUMED'
+			? applyAutomaticLunchBreak({
+					workedMinutes: virtualDay.workMinutes,
+					existingMealBreakMinutes: 0,
+					automaticLunchBreak: options.automaticLunchBreak,
+				})
+			: { workMinutes: virtualDay.workMinutes };
 
 	return {
 		employeeName: virtualDay.employeeName,
@@ -429,8 +609,11 @@ function buildVirtualSummaryRow(
 		date: formatDateKey(virtualDay.dateKey),
 		firstEntry,
 		lastExit: fallbackLabel,
-		totalHours: formatWorkedMinutes(virtualDay.workMinutes),
-		workMinutes: virtualDay.workMinutes,
+		totalHours: formatWorkedMinutes(workedMinutes.workMinutes),
+		workMinutes: workedMinutes.workMinutes,
+		...(workedMinutes.mealBreakMinutes !== undefined
+			? { mealBreakMinutes: workedMinutes.mealBreakMinutes }
+			: {}),
 	};
 }
 
@@ -585,6 +768,10 @@ export function buildAttendanceEmployeePdfGroups(
 			lastExit: row.lastExit,
 			totalHours: row.totalHours,
 			workMinutes: row.workMinutes,
+			...(row.mealBreakMinutes !== undefined
+				? { mealBreakMinutes: row.mealBreakMinutes }
+				: {}),
+			...(row.incompleteReason ? { incompleteReason: row.incompleteReason } : {}),
 		});
 
 		if (row.workMinutes !== null) {

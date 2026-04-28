@@ -176,6 +176,7 @@ interface FakeDbState {
 	pendingFiscalVoucherStampBeforeCfdiXmlWrite: boolean;
 	pendingCfdiXmlArtifactRaceOnNextInsert: boolean;
 	pendingCfdiXmlArtifactRaceXmlHash: string | null;
+	simulatePostgresAbortAfterCfdiXmlUniqueViolation: boolean;
 }
 
 /**
@@ -1184,7 +1185,10 @@ function createFakeDb(state: FakeDbState): {
 		 *
 		 * @param selection - Drizzle-style selection shape passed to `select()`
 		 */
-		constructor(private readonly selection: unknown) {}
+		constructor(
+			private readonly selection: unknown,
+			private readonly assertCanExecute: () => void = () => undefined,
+		) {}
 
 		/**
 		 * Sets the source table for the query.
@@ -1259,6 +1263,7 @@ function createFakeDb(state: FakeDbState): {
 		 * @returns Result rows
 		 */
 		private execute(): unknown[] {
+			this.assertCanExecute();
 			const tableName = this.tableName;
 			if (!tableName) {
 				return [];
@@ -1514,7 +1519,13 @@ function createFakeDb(state: FakeDbState): {
 	 *
 	 * @returns Transaction client with insert/update/select helpers
 	 */
-	const createTransaction = (): {
+	const createTransaction = (
+		options: {
+			simulatePostgresAbortAfterUniqueViolation: boolean;
+		} = {
+			simulatePostgresAbortAfterUniqueViolation: false,
+		},
+	): {
 		insert: (table: unknown) => {
 			values: (
 				values: Record<string, unknown> | Record<string, unknown>[],
@@ -1534,6 +1545,28 @@ function createFakeDb(state: FakeDbState): {
 		select: (selection?: unknown) => unknown;
 		execute: (query: unknown) => Promise<void>;
 	} => {
+		let transactionAborted = false;
+
+		/**
+		 * Marks the fake transaction as aborted after a PostgreSQL-style write error.
+		 */
+		const markTransactionAborted = (): void => {
+			if (options.simulatePostgresAbortAfterUniqueViolation) {
+				transactionAborted = true;
+			}
+		};
+
+		/**
+		 * Throws when the fake transaction has already seen a PostgreSQL-style error.
+		 */
+		const assertTransactionCanExecute = (): void => {
+			if (transactionAborted) {
+				throw new Error(
+					'current transaction is aborted, commands ignored until end of transaction block',
+				);
+			}
+		};
+
 		/**
 		 * Begins an insert operation.
 		 *
@@ -1644,6 +1677,7 @@ function createFakeDb(state: FakeDbState): {
 						}));
 						state.pendingCfdiXmlArtifactRaceXmlHash = null;
 						state.payrollCfdiXmlArtifacts.push(...concurrentRows);
+						markTransactionAborted();
 						throw createFakeUniqueViolationError();
 					}
 					if (
@@ -1653,6 +1687,7 @@ function createFakeDb(state: FakeDbState): {
 							),
 						)
 					) {
+						markTransactionAborted();
 						throw createFakeUniqueViolationError();
 					}
 					state.payrollCfdiXmlArtifacts.push(
@@ -1832,6 +1867,7 @@ function createFakeDb(state: FakeDbState): {
 										hasSameCfdiXmlArtifactUniqueKey(existing, updatedArtifact),
 								)
 							) {
+								markTransactionAborted();
 								throw createFakeUniqueViolationError();
 							}
 							Object.assign(artifact, values);
@@ -1881,7 +1917,8 @@ function createFakeDb(state: FakeDbState): {
 		 * @param selection - Drizzle-style selection shape passed to `select()`
 		 * @returns Thenable query builder
 		 */
-		const select = (selection?: unknown) => new FakeQuery(selection);
+		const select = (selection?: unknown) =>
+			new FakeQuery(selection, assertTransactionCanExecute);
 
 		/**
 		 * Executes a raw SQL statement (no-op for tests).
@@ -1935,14 +1972,32 @@ function createFakeDb(state: FakeDbState): {
 		});
 
 		try {
-			return await fn(createTransaction());
+			return await fn(
+				createTransaction({
+					simulatePostgresAbortAfterUniqueViolation:
+						state.simulatePostgresAbortAfterCfdiXmlUniqueViolation,
+				}),
+			);
 		} catch (error) {
+			const concurrentlyCommittedCfdiXmlArtifacts = state.payrollCfdiXmlArtifacts.filter(
+				(row) =>
+					typeof row.id === 'string' &&
+					row.id.startsWith('concurrent-cfdi-xml-artifact-'),
+			);
 			state.employees = snapshot.employees;
 			state.employeeDeductions = snapshot.employeeDeductions;
 			state.payrollRuns = snapshot.payrollRuns;
 			state.payrollRunEmployees = snapshot.payrollRunEmployees;
 			state.payrollFiscalVouchers = snapshot.payrollFiscalVouchers;
-			state.payrollCfdiXmlArtifacts = snapshot.payrollCfdiXmlArtifacts;
+			state.payrollCfdiXmlArtifacts = [
+				...snapshot.payrollCfdiXmlArtifacts,
+				...concurrentlyCommittedCfdiXmlArtifacts.filter(
+					(concurrentArtifact) =>
+						!snapshot.payrollCfdiXmlArtifacts.some(
+							(snapshotArtifact) => snapshotArtifact.id === concurrentArtifact.id,
+						),
+				),
+			];
 			throw error;
 		}
 	};
@@ -1996,6 +2051,7 @@ const dbState: FakeDbState = {
 	pendingFiscalVoucherStampBeforeCfdiXmlWrite: false,
 	pendingCfdiXmlArtifactRaceOnNextInsert: false,
 	pendingCfdiXmlArtifactRaceXmlHash: null,
+	simulatePostgresAbortAfterCfdiXmlUniqueViolation: false,
 };
 
 const fakeDb = createFakeDb(dbState);
@@ -2101,6 +2157,7 @@ describe('payroll routes', () => {
 		dbState.pendingFiscalVoucherStampBeforeCfdiXmlWrite = false;
 		dbState.pendingCfdiXmlArtifactRaceOnNextInsert = false;
 		dbState.pendingCfdiXmlArtifactRaceXmlHash = null;
+		dbState.simulatePostgresAbortAfterCfdiXmlUniqueViolation = false;
 	});
 
 	afterEach(() => {
@@ -3629,6 +3686,7 @@ describe('payroll routes', () => {
 		});
 		dbState.pendingCfdiXmlArtifactRaceOnNextInsert = true;
 		dbState.pendingCfdiXmlArtifactRaceXmlHash = 'persisted-concurrent-xml-hash';
+		dbState.simulatePostgresAbortAfterCfdiXmlUniqueViolation = true;
 
 		const { payrollRoutes } = await import('./payroll.js');
 		const response = await payrollRoutes.handle(

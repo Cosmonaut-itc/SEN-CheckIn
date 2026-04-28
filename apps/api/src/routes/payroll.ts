@@ -2596,34 +2596,41 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 			const existingArtifactToReplace = body.forceRegenerate
 				? (existingSameHash ?? existingLatest)
 				: existingSameHash;
-			const persistResult = await db.transaction(async (tx) => {
-				const writeDb = tx as unknown as Pick<typeof db, 'insert' | 'select' | 'update'>;
-				const guardedVoucherRows = await writeDb
-					.update(payrollFiscalVoucher)
-					.set({ updatedAt: voucher.updatedAt })
-					.where(
-						and(
-							eq(payrollFiscalVoucher.id, voucherId),
-							eq(payrollFiscalVoucher.payrollRunId, runId),
-							eq(payrollFiscalVoucher.organizationId, run.organizationId),
-							eq(payrollFiscalVoucher.status, 'READY_TO_STAMP'),
-							isNull(payrollFiscalVoucher.uuid),
-							isNull(payrollFiscalVoucher.stampedAt),
-						),
-					)
-					.returning({ id: payrollFiscalVoucher.id });
-				if (guardedVoucherRows.length === 0) {
-					return {
-						status: 'STAMPED_OR_NOT_READY' as const,
-						artifactId: null,
-						artifactAfterUniqueConflict: null,
-					};
-				}
+			let persistResult: {
+				status: 'STAMPED_OR_NOT_READY' | 'PERSISTED';
+				artifactId: string | null;
+				artifactAfterUniqueConflict: PayrollCfdiXmlArtifactRow | null;
+			};
+			try {
+				persistResult = await db.transaction(async (tx) => {
+					const writeDb = tx as unknown as Pick<
+						typeof db,
+						'insert' | 'select' | 'update'
+					>;
+					const guardedVoucherRows = await writeDb
+						.update(payrollFiscalVoucher)
+						.set({ updatedAt: voucher.updatedAt })
+						.where(
+							and(
+								eq(payrollFiscalVoucher.id, voucherId),
+								eq(payrollFiscalVoucher.payrollRunId, runId),
+								eq(payrollFiscalVoucher.organizationId, run.organizationId),
+								eq(payrollFiscalVoucher.status, 'READY_TO_STAMP'),
+								isNull(payrollFiscalVoucher.uuid),
+								isNull(payrollFiscalVoucher.stampedAt),
+							),
+						)
+						.returning({ id: payrollFiscalVoucher.id });
+					if (guardedVoucherRows.length === 0) {
+						return {
+							status: 'STAMPED_OR_NOT_READY' as const,
+							artifactId: null,
+							artifactAfterUniqueConflict: null,
+						};
+					}
 
-				let artifactId = existingArtifactToReplace?.id ?? crypto.randomUUID();
-				let artifactAfterUniqueConflict: PayrollCfdiXmlArtifactRow | null = null;
-				if (existingArtifactToReplace) {
-					try {
+					const artifactId = existingArtifactToReplace?.id ?? crypto.randomUUID();
+					if (existingArtifactToReplace) {
 						await writeDb
 							.update(payrollCfdiXmlArtifact)
 							.set({
@@ -2635,42 +2642,33 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 								generatedAt: artifactPayload.generatedAt,
 							})
 							.where(eq(payrollCfdiXmlArtifact.id, artifactId));
-					} catch (error) {
-						if (!isUniqueViolationError(error)) {
-							throw error;
-						}
-						const artifactAfterConflict = await findArtifactByGeneratedHash(writeDb);
-						if (!artifactAfterConflict) {
-							throw error;
-						}
-						artifactId = artifactAfterConflict.id;
-						artifactAfterUniqueConflict = artifactAfterConflict;
-					}
-				} else {
-					try {
+					} else {
 						await writeDb.insert(payrollCfdiXmlArtifact).values({
 							id: artifactId,
 							...artifactPayload,
 						});
-					} catch (error) {
-						if (!isUniqueViolationError(error)) {
-							throw error;
-						}
-						const artifactAfterConflict = await findArtifactByGeneratedHash(writeDb);
-						if (!artifactAfterConflict) {
-							throw error;
-						}
-						artifactId = artifactAfterConflict.id;
-						artifactAfterUniqueConflict = artifactAfterConflict;
 					}
-				}
 
-				return {
-					status: 'PERSISTED' as const,
-					artifactId,
-					artifactAfterUniqueConflict,
+					return {
+						status: 'PERSISTED' as const,
+						artifactId,
+						artifactAfterUniqueConflict: null,
+					};
+				});
+			} catch (error) {
+				if (!isUniqueViolationError(error)) {
+					throw error;
+				}
+				const artifactAfterConflict = await findArtifactByGeneratedHash(db);
+				if (!artifactAfterConflict) {
+					throw error;
+				}
+				persistResult = {
+					status: 'PERSISTED',
+					artifactId: artifactAfterConflict.id,
+					artifactAfterUniqueConflict: artifactAfterConflict,
 				};
-			});
+			}
 
 			if (persistResult.status === 'STAMPED_OR_NOT_READY') {
 				set.status = 409;

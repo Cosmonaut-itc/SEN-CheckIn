@@ -26,8 +26,10 @@ const authState: AuthState = {
 const resolveOrganizationIdCalls: ResolveOrganizationIdArgs[] = [];
 const dbState: {
 	selectResults: unknown[];
+	whereCalls: unknown[];
 } = {
 	selectResults: [],
+	whereCalls: [],
 };
 
 /**
@@ -53,6 +55,38 @@ function resetState(): void {
 	authState.apiKeyOrganizationIds = ['org-1', 'org-2'];
 	resolveOrganizationIdCalls.length = 0;
 	dbState.selectResults = [];
+	dbState.whereCalls = [];
+}
+
+/**
+ * Searches a nested condition descriptor for a primitive value.
+ *
+ * @param value - Root value to inspect
+ * @param expected - Primitive value to find
+ * @param seen - Previously visited objects for cycle protection
+ * @returns True when expected is found anywhere in the descriptor
+ */
+function conditionContainsValue(
+	value: unknown,
+	expected: string,
+	seen: WeakSet<object> = new WeakSet<object>(),
+): boolean {
+	if (value === expected) {
+		return true;
+	}
+	if (!value || typeof value !== 'object') {
+		return false;
+	}
+	if (seen.has(value)) {
+		return false;
+	}
+	seen.add(value);
+
+	if (Array.isArray(value)) {
+		return value.some((item) => conditionContainsValue(item, expected, seen));
+	}
+
+	return Object.values(value).some((item) => conditionContainsValue(item, expected, seen));
 }
 
 /**
@@ -91,7 +125,8 @@ class FakeQueryBuilder {
 	 *
 	 * @returns Query builder
 	 */
-	where(): this {
+	where(condition: unknown): this {
+		dbState.whereCalls.push(condition);
 		return this;
 	}
 
@@ -292,6 +327,23 @@ describe('attendance dashboard routes', () => {
 		};
 		expect(payload.dateKey).toBe('2026-04-20');
 		expect(payload.data).toEqual([]);
+	});
+
+	it('scopes staffing coverage employee loading to the requested location', async () => {
+		dbState.selectResults = [[{ timeZone: 'America/Mexico_City' }], [], [], [], [], []];
+
+		const { attendanceRoutes } = await import('./attendance.js');
+		const response = await attendanceRoutes.handle(
+			createGetRequest(
+				'/attendance/staffing-coverage?organizationId=org-2&date=2026-04-20&locationId=11111111-1111-4111-8111-111111111111',
+			),
+		);
+
+		expect(response.status).toBe(200);
+		const employeeWhereCall = dbState.whereCalls[2];
+		expect(
+			conditionContainsValue(employeeWhereCall, '11111111-1111-4111-8111-111111111111'),
+		).toBe(true);
 	});
 
 	it('maps legacy Mexico City manual schedule exceptions to the requested staffing coverage date', async () => {

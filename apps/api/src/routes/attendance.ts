@@ -372,10 +372,28 @@ async function loadStaffingCoverageSourceRows(args: {
 		.where(and(...requirementConditions))
 		.orderBy(location.name, jobPosition.name);
 
+	const { startUtc } = buildUtcBoundsForDateKey(args.startDateKey, args.timeZone);
+	const { endExclusiveUtc } = buildUtcBoundsForDateKey(args.endDateKey, args.timeZone);
 	const employeeConditions: SQL<unknown>[] = [
 		eq(employee.organizationId, args.organizationId),
 		eq(employee.status, 'ACTIVE'),
 	];
+	if (args.locationId) {
+		employeeConditions.push(sql`(
+			${employee.locationId} = ${args.locationId}
+			OR EXISTS (
+				SELECT 1
+				FROM attendance_record staffing_attendance_record
+				INNER JOIN device staffing_attendance_device
+					ON staffing_attendance_record.device_id = staffing_attendance_device.id
+				WHERE staffing_attendance_record.employee_id = ${employee.id}
+					AND staffing_attendance_record.type = 'CHECK_IN'
+					AND staffing_attendance_device.location_id = ${args.locationId}
+					AND staffing_attendance_record.timestamp >= ${startUtc}
+					AND staffing_attendance_record.timestamp < ${endExclusiveUtc}
+			)
+		)`);
+	}
 
 	const employees = await db
 		.select({
@@ -419,8 +437,6 @@ async function loadStaffingCoverageSourceRows(args: {
 					.where(inArray(employeeSchedule.employeeId, employeeIds))
 			: [];
 
-	const { startUtc } = buildUtcBoundsForDateKey(args.startDateKey, args.timeZone);
-	const { endExclusiveUtc } = buildUtcBoundsForDateKey(args.endDateKey, args.timeZone);
 	const { primaryDateKeyByStoredTime, legacyManualDateKeyByStoredTime } =
 		buildScheduleExceptionDateKeyMaps(
 			args.startDateKey,

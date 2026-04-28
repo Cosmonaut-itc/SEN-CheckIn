@@ -12,6 +12,7 @@ import {
 } from '../schemas/crud.js';
 import { buildErrorResponse } from '../utils/error-response.js';
 import { hasOrganizationAccess, resolveOrganizationId } from '../utils/organization.js';
+import { shouldValidateStaffingRequirementScopeUpdate } from './staffing-requirements.helpers.js';
 
 type StaffingRequirementInsert = typeof staffingRequirement.$inferInsert;
 type StaffingRequirementSelect = typeof staffingRequirement.$inferSelect;
@@ -434,29 +435,34 @@ export const staffingRequirementRoutes = new Elysia({ prefix: '/staffing-require
 				return { data: existing };
 			}
 
+			const shouldValidateScope = shouldValidateStaffingRequirementScopeUpdate(body);
 			const nextLocationId = body.locationId ?? existing.locationId;
 			const nextJobPositionId = body.jobPositionId ?? existing.jobPositionId;
 
-			if (!(await locationBelongsToOrganization(nextLocationId, organizationId))) {
-				set.status = 400;
-				return buildErrorResponse('Location not found for organization', 400);
+			if (shouldValidateScope) {
+				if (!(await locationBelongsToOrganization(nextLocationId, organizationId))) {
+					set.status = 400;
+					return buildErrorResponse('Location not found for organization', 400);
+				}
+
+				if (!(await jobPositionBelongsToOrganization(nextJobPositionId, organizationId))) {
+					set.status = 400;
+					return buildErrorResponse('Job position not found for organization', 400);
+				}
 			}
 
-			if (!(await jobPositionBelongsToOrganization(nextJobPositionId, organizationId))) {
-				set.status = 400;
-				return buildErrorResponse('Job position not found for organization', 400);
-			}
-
-			if (
-				await staffingRequirementExists(
-					organizationId,
-					nextLocationId,
-					nextJobPositionId,
-					existing.id,
-				)
-			) {
-				set.status = 409;
-				return buildErrorResponse('Staffing requirement already exists', 409);
+			if (shouldValidateScope) {
+				if (
+					await staffingRequirementExists(
+						organizationId,
+						nextLocationId,
+						nextJobPositionId,
+						existing.id,
+					)
+				) {
+					set.status = 409;
+					return buildErrorResponse('Staffing requirement already exists', 409);
+				}
 			}
 
 			const updatePayload: Partial<StaffingRequirementInsert> = { updatedAt: new Date() };

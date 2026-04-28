@@ -23,6 +23,7 @@ export type PayrollCfdiValidationIssueCode =
 	| 'XML_PERCEPTION_BREAKDOWN_REQUIRED'
 	| 'XML_UNMAPPED_CONCEPT'
 	| 'XML_NEGATIVE_AMOUNT'
+	| 'XML_SALARY_REQUIRED'
 	| 'XML_TOTALS_MISMATCH'
 	| 'XML_SUBSIDY_AMOUNT_MUST_BE_ZERO'
 	| 'XML_REAL_PAYROLL_COMPLEMENT_FORBIDDEN'
@@ -927,7 +928,12 @@ function validateNullableAmount(
 	field: string,
 	errors: PayrollCfdiValidationIssue[],
 ): void {
-	if (value === null || !Number.isFinite(value) || Object.is(value, -0) || value < 0) {
+	if (value === null) {
+		errors.push(createIssue('XML_SALARY_REQUIRED', field));
+		return;
+	}
+
+	if (!Number.isFinite(value) || Object.is(value, -0) || value < 0) {
 		errors.push(createIssue('XML_NEGATIVE_AMOUNT', field));
 	}
 }

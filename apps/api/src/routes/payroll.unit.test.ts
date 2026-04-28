@@ -15,6 +15,7 @@ import {
 	type AttendanceRow,
 	type PayrollEmployeeRow,
 } from '../services/payroll-calculation.js';
+import { mapFiscalVoucherToPayrollCfdiBuildInput } from '../services/payroll-cfdi-artifacts.js';
 import {
 	AET_P10_2026_PAYROLL_SETTINGS,
 	AET_P10_2026_PERIOD,
@@ -3555,6 +3556,61 @@ describe('payroll routes', () => {
 			'voucher-xml-valid-XML_WITHOUT_SEAL.xml',
 		);
 		expect(await downloadResponse.text()).toContain('<cfdi:Comprobante');
+	});
+
+	it('returns an existing same-snapshot XML artifact without rebuilding invalid current XML', async () => {
+		const issuedAt = new Date('2026-04-12T12:00:00.000Z');
+		const { runId, voucherId } = seedValidPayrollCfdiXmlScenario({
+			runId: 'processed-run-xml-idempotent-skip',
+			voucherId: 'voucher-xml-idempotent-skip',
+		});
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const firstResponse = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/${voucherId}/xml`, {
+				issuedAt: issuedAt.toISOString(),
+			}),
+		);
+		const firstJson = (await firstResponse.json()) as {
+			data?: { artifactId: string | null; xmlHash: string | null };
+		};
+		const voucher = dbState.payrollFiscalVouchers[0];
+		const artifact = dbState.payrollCfdiXmlArtifacts[0];
+		if (!voucher || !artifact) {
+			throw new Error('Expected seeded fiscal voucher and generated XML artifact.');
+		}
+		const voucherSnapshot = voucher.voucher as Record<string, unknown>;
+		const receiver = voucherSnapshot.receiver as Record<string, unknown>;
+		receiver.employmentStartDateKey = null;
+		artifact.fiscalSnapshotHash = mapFiscalVoucherToPayrollCfdiBuildInput({
+			voucherRow: {
+				id: voucher.id as string,
+				payrollRunId: voucher.payrollRunId as string,
+				organizationId: voucher.organizationId as string,
+				employeeId: voucher.employeeId as string,
+				status: voucher.status as string,
+				uuid: voucher.uuid as string | null,
+				stampedAt: voucher.stampedAt as Date | string | null,
+				voucher: voucherSnapshot,
+			},
+			issuedAt,
+		}).fiscalSnapshotHash;
+
+		const idempotentResponse = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/${voucherId}/xml`, {
+				issuedAt: issuedAt.toISOString(),
+			}),
+		);
+		const idempotentJson = (await idempotentResponse.json()) as {
+			data?: { artifactId: string | null; xmlHash: string | null; status: string };
+		};
+
+		expect(firstResponse.status).toBe(200);
+		expect(idempotentResponse.status).toBe(200);
+		expect(idempotentJson.data?.artifactId).toBe(firstJson.data?.artifactId);
+		expect(idempotentJson.data?.xmlHash).toBe(firstJson.data?.xmlHash);
+		expect(idempotentJson.data?.status).toBe('VALID');
+		expect(dbState.payrollCfdiXmlArtifacts).toHaveLength(1);
 	});
 
 	it('queries a single fiscal voucher by run, voucher, and organization for XML generation and download', async () => {

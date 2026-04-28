@@ -2547,6 +2547,17 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				};
 			}
 
+			if (existingSameHash && !body.forceRegenerate) {
+				return {
+					data: buildPayrollCfdiArtifactSummary({
+						voucherId,
+						artifact: existingSameHash,
+						status: existingSameHash.validationErrors.length > 0 ? 'BLOCKED' : 'VALID',
+						warnings: [],
+					}),
+				};
+			}
+
 			const payload = buildPayrollCfdiXmlPersistencePayload({
 				voucherRow: sourceVoucher,
 				issuedAt,
@@ -2556,17 +2567,6 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				return { data: payload.summary };
 			}
 			const artifactPayload = payload.artifact;
-
-			if (existingSameHash && !body.forceRegenerate) {
-				return {
-					data: buildPayrollCfdiArtifactSummary({
-						voucherId,
-						artifact: existingSameHash,
-						status: 'VALID',
-						warnings: [],
-					}),
-				};
-			}
 
 			/**
 			 * Reloads the artifact matching the XML generated for this request.

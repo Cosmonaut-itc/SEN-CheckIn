@@ -160,10 +160,7 @@ function attrs(xml: string, tagName: string): Record<string, string> {
 	}
 
 	return Object.fromEntries(
-		[...attributeText.matchAll(/([A-Za-z0-9_:]+)="([^"]*)"/g)].map((entry) => [
-			entry[1],
-			entry[2],
-		]),
+		[...attributeText.matchAll(/([^\s=]+)="([^"]*)"/g)].map((entry) => [entry[1], entry[2]]),
 	);
 }
 
@@ -375,6 +372,9 @@ describe('payroll CFDI XML builder totals', () => {
 			NumDiasPagados: '7.000',
 			TotalPercepciones: '2205.28',
 			TotalOtrosPagos: '0.00',
+		});
+		expect(attrs(result.xmlWithoutSeal, 'nomina12:Receptor')).toMatchObject({
+			Antigüedad: 'P570W',
 		});
 		expect(result.xmlWithoutSeal).toContain(
 			'<nomina12:Percepcion TipoPercepcion="001" Clave="001" Concepto="Sueldo" ImporteGravado="1890.24" ImporteExento="0.00"/>',
@@ -683,12 +683,12 @@ describe('payroll CFDI XML validation', () => {
 			[
 				'missing base contribution salary',
 				buildWeeklyInput({ receiver: { baseContributionSalary: null } }),
-				'XML_NEGATIVE_AMOUNT',
+				'XML_SALARY_REQUIRED',
 			],
 			[
 				'missing integrated daily salary',
 				buildWeeklyInput({ receiver: { integratedDailySalary: null } }),
-				'XML_NEGATIVE_AMOUNT',
+				'XML_SALARY_REQUIRED',
 			],
 			[
 				'missing federal entity',

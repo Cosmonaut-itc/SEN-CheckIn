@@ -283,6 +283,60 @@ describe('payroll CFDI XML builder totals', () => {
 		});
 	});
 
+	it('includes positive other payments in CFDI concept amounts and totals', () => {
+		const result = buildPayrollCfdiXml(
+			buildWeeklyInput({
+				perceptions: [
+					{
+						internalType: 'SALARY',
+						internalCode: 'SALARY',
+						satTypeCode: '001',
+						employerCode: '001',
+						conceptLabel: 'Sueldo',
+						taxedAmount: 3000,
+						exemptAmount: 0,
+					},
+				],
+				deductions: [
+					{
+						internalType: 'ISR',
+						internalCode: 'ISR',
+						satTypeCode: '002',
+						employerCode: '101',
+						conceptLabel: 'ISR',
+						amount: 100,
+					},
+				],
+				otherPayments: [
+					{
+						internalType: 'TAX_REFUND',
+						internalCode: 'TAX_REFUND',
+						satTypeCode: '001',
+						employerCode: '036',
+						conceptLabel: 'Reintegro de ISR',
+						amount: 250,
+						subsidyCausedAmount: null,
+					},
+				],
+			}),
+		);
+
+		expect(result.validation.status).toBe('READY_TO_STAMP');
+		expect(attrs(result.xmlWithoutSeal, 'cfdi:Comprobante')).toMatchObject({
+			SubTotal: '3250.00',
+			Descuento: '100.00',
+			Total: '3150.00',
+		});
+		expect(attrs(result.xmlWithoutSeal, 'nomina12:Nomina')).toMatchObject({
+			TotalPercepciones: '3000.00',
+			TotalOtrosPagos: '250.00',
+		});
+		expect(attrs(result.xmlWithoutSeal, 'cfdi:Concepto')).toMatchObject({
+			ValorUnitario: '3250.00',
+			Importe: '3250.00',
+		});
+	});
+
 	it('builds the deterministic golden weekly ordinary CFDI structure', () => {
 		const result = buildPayrollCfdiXml(buildWeeklyInput());
 

@@ -2458,11 +2458,13 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				.select()
 				.from(payrollFiscalVoucher)
 				.where(
-					eq(payrollFiscalVoucher.payrollRunId, runId),
+					and(
+						eq(payrollFiscalVoucher.payrollRunId, runId),
+						eq(payrollFiscalVoucher.id, voucherId),
+						eq(payrollFiscalVoucher.organizationId, run.organizationId),
+					),
 				)) as PayrollFiscalVoucherDbRow[];
-			const voucher = voucherRows.find(
-				(row) => row.id === voucherId && row.organizationId === run.organizationId,
-			);
+			const voucher = voucherRows[0] ?? null;
 
 			if (!voucher) {
 				set.status = 404;
@@ -2759,11 +2761,13 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				.select()
 				.from(payrollFiscalVoucher)
 				.where(
-					eq(payrollFiscalVoucher.payrollRunId, runId),
+					and(
+						eq(payrollFiscalVoucher.payrollRunId, runId),
+						eq(payrollFiscalVoucher.id, voucherId),
+						eq(payrollFiscalVoucher.organizationId, run.organizationId),
+					),
 				)) as PayrollFiscalVoucherDbRow[];
-			const voucher = voucherRows.find(
-				(row) => row.id === voucherId && row.organizationId === run.organizationId,
-			);
+			const voucher = voucherRows[0] ?? null;
 
 			if (!voucher) {
 				set.status = 404;

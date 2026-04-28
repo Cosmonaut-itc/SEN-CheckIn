@@ -165,6 +165,7 @@ interface FakeDbState {
 	payrollRunEmployees: Record<string, unknown>[];
 	payrollFiscalVouchers: Record<string, unknown>[];
 	payrollCfdiXmlArtifacts: Record<string, unknown>[];
+	payrollFiscalVoucherSelectConditions: DrizzleCondition[];
 	payrollFiscalVoucherUpdateCount: number;
 	transactionCalled: boolean;
 	deductionUpdateConditions: DrizzleCondition[];
@@ -1469,11 +1470,14 @@ function createFakeDb(state: FakeDbState): {
 			}
 
 			if (tableName === 'payroll_fiscal_voucher') {
-				const whereEq = this.whereCondition?.kind === 'eq' ? this.whereCondition : null;
-				const runId = typeof whereEq?.value === 'string' ? whereEq.value : null;
-				return runId === null
-					? state.payrollFiscalVouchers
-					: state.payrollFiscalVouchers.filter((row) => row.payrollRunId === runId);
+				if (this.whereCondition) {
+					state.payrollFiscalVoucherSelectConditions.push(this.whereCondition);
+				}
+				return this.whereCondition
+					? state.payrollFiscalVouchers.filter((row) =>
+							matchesFakeRowCondition(row, this.whereCondition as DrizzleCondition),
+						)
+					: state.payrollFiscalVouchers;
 			}
 
 			if (tableName === 'payroll_cfdi_xml_artifact') {
@@ -1981,6 +1985,7 @@ const dbState: FakeDbState = {
 	payrollRunEmployees: [],
 	payrollFiscalVouchers: [],
 	payrollCfdiXmlArtifacts: [],
+	payrollFiscalVoucherSelectConditions: [],
 	payrollFiscalVoucherUpdateCount: 0,
 	transactionCalled: false,
 	deductionUpdateConditions: [],
@@ -2085,6 +2090,7 @@ describe('payroll routes', () => {
 		dbState.payrollRunEmployees = [];
 		dbState.payrollFiscalVouchers = [];
 		dbState.payrollCfdiXmlArtifacts = [];
+		dbState.payrollFiscalVoucherSelectConditions = [];
 		dbState.payrollFiscalVoucherUpdateCount = 0;
 		dbState.transactionCalled = false;
 		dbState.deductionUpdateConditions = [];
@@ -3492,6 +3498,45 @@ describe('payroll routes', () => {
 			'voucher-xml-valid-XML_WITHOUT_SEAL.xml',
 		);
 		expect(await downloadResponse.text()).toContain('<cfdi:Comprobante');
+	});
+
+	it('queries a single fiscal voucher by run, voucher, and organization for XML generation and download', async () => {
+		const { runId, voucherId } = seedValidPayrollCfdiXmlScenario({
+			runId: 'processed-run-xml-filtered',
+			voucherId: 'voucher-xml-filtered-target',
+		});
+		const targetVoucher = dbState.payrollFiscalVouchers[0];
+		if (!targetVoucher) {
+			throw new Error('Expected seeded fiscal voucher.');
+		}
+		dbState.payrollFiscalVouchers.push({
+			...targetVoucher,
+			id: 'voucher-xml-filtered-other',
+			employeeId: 'emp-xml-filtered-other',
+		});
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const generateResponse = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/${voucherId}/xml`, {
+				issuedAt: '2026-04-12T12:00:00.000Z',
+			}),
+		);
+		const downloadResponse = await payrollRoutes.handle(
+			createApiKeyJsonGetRequest(`/payroll/runs/${runId}/fiscal-vouchers/${voucherId}/xml`),
+		);
+		const lookupConditions = dbState.payrollFiscalVoucherSelectConditions.map((condition) =>
+			flattenEqualityConditions(condition),
+		);
+		const targetedLookupConditions = lookupConditions.filter(
+			(condition) =>
+				condition.payroll_run_id === runId &&
+				condition.id === voucherId &&
+				condition.organization_id === dbState.organizationId,
+		);
+
+		expect(generateResponse.status).toBe(200);
+		expect(downloadResponse.status).toBe(200);
+		expect(targetedLookupConditions).toHaveLength(2);
 	});
 
 	it('blocks XML generation for persisted BLOCKED fiscal vouchers before building artifacts', async () => {

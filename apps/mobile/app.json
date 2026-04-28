@@ -56,7 +56,8 @@
         {
           "cameraPermission": "Permitir que checa acceda a tu camara para verificar la asistencia"
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,

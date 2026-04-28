@@ -203,11 +203,13 @@
 			"scanCheckOut": "Escanear salida",
 			"scanWorkOffsite": "Fuera de oficina (web RH)",
 			"tapToLink": "Toca para vincular este dispositivo",
-			"openFaceEnrollment": "Registrar rostro"
+			"openFaceEnrollment": "Registrar rostro",
+			"signOut": "Cerrar sesión"
 		},
 		"accessibility": {
 			"toggleAttendanceType": "Cambiar tipo de asistencia",
-			"openSettings": "Abrir configuración del dispositivo"
+			"openSettings": "Abrir configuración del dispositivo",
+			"signOut": "Cerrar sesión y volver a vincular el dispositivo"
 		}
 	},
 	"FaceEnrollment": {

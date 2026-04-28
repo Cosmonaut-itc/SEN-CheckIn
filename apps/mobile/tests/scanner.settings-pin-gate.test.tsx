@@ -10,7 +10,25 @@ const mockFetchDeviceSettingsPinStatus = jest.fn();
 const mockVerifyDeviceSettingsPin = jest.fn();
 const mockGrantSettingsAccess = jest.fn();
 const mockToastShow = jest.fn();
+const mockRequestReauth = jest.fn();
+const mockSignOut = jest.fn();
+const mockClearAuthStorage = jest.fn();
+const mockClearPendingAttendanceQueue = jest.fn();
 const mockDeviceContext = jest.fn();
+
+type MockAuthContext = {
+	authState: 'ok' | 'refreshing' | 'grace' | 'locked';
+	isLoading: boolean;
+	requestReauth: typeof mockRequestReauth;
+	session: { session: { id: string } } | null;
+};
+
+const mockAuthContext: MockAuthContext = {
+	authState: 'ok',
+	isLoading: false,
+	requestReauth: mockRequestReauth,
+	session: { session: { id: 'session-1' } },
+};
 const mockThemeColors: Record<string, string> = {
 	background: '#110D0A',
 	border: '#3D3028',
@@ -235,14 +253,12 @@ jest.mock('@/lib/device-context', () => ({
 }));
 
 jest.mock('@/providers/auth-provider', () => ({
-	useAuthContext: () => ({
-		requestReauth: jest.fn(),
-	}),
+	useAuthContext: () => mockAuthContext,
 }));
 
 jest.mock('@/lib/auth-client', () => ({
-	clearAuthStorage: jest.fn(),
-	signOut: jest.fn(),
+	clearAuthStorage: (...args: unknown[]) => mockClearAuthStorage(...args),
+	signOut: (...args: unknown[]) => mockSignOut(...args),
 }));
 
 jest.mock('@/lib/offline-attendance', () => {
@@ -251,7 +267,8 @@ jest.mock('@/lib/offline-attendance', () => {
 			isConnected?: boolean | null;
 			isInternetReachable?: boolean | null;
 		}) => state.isConnected === false || state.isInternetReachable === false,
-		clearPendingAttendanceQueue: jest.fn(),
+		clearPendingAttendanceQueue: (...args: unknown[]) =>
+			mockClearPendingAttendanceQueue(...args),
 	};
 });
 
@@ -308,6 +325,13 @@ describe('ScannerScreen settings PIN gate', () => {
 		mockVerifyDeviceSettingsPin.mockReset();
 		mockGrantSettingsAccess.mockReset();
 		mockToastShow.mockReset();
+		mockRequestReauth.mockReset();
+		mockSignOut.mockReset();
+		mockClearAuthStorage.mockReset();
+		mockClearPendingAttendanceQueue.mockReset();
+		mockAuthContext.authState = 'ok';
+		mockAuthContext.isLoading = false;
+		mockAuthContext.session = { session: { id: 'session-1' } };
 		mockDeviceContext.mockReturnValue({
 			settings: {
 				deviceId: 'device-1',
@@ -315,6 +339,55 @@ describe('ScannerScreen settings PIN gate', () => {
 				name: 'Terminal A',
 			},
 			clearSettings: jest.fn(),
+		});
+	});
+
+	it('shows a forced sign-out action instead of scan when the device has no session', async () => {
+		const mockClearSettings = jest.fn();
+		mockAuthContext.authState = 'grace';
+		mockAuthContext.session = null;
+		mockDeviceContext.mockReturnValue({
+			settings: {
+				deviceId: 'device-1',
+				locationId: 'location-1',
+				name: 'Terminal A',
+			},
+			clearSettings: mockClearSettings,
+		});
+
+		render(<ScannerScreen />);
+
+		expect(screen.getByText('Cerrar sesión')).toBeOnTheScreen();
+		expect(screen.queryByText('Escanear entrada')).not.toBeOnTheScreen();
+
+		fireEvent.press(screen.getByText('Cerrar sesión'));
+
+		await waitFor(() => {
+			expect(mockSignOut).toHaveBeenCalled();
+			expect(mockClearAuthStorage).toHaveBeenCalled();
+			expect(mockClearPendingAttendanceQueue).toHaveBeenCalled();
+			expect(mockClearSettings).toHaveBeenCalled();
+			expect(mockReplace).toHaveBeenCalledWith('/(auth)/login');
+		});
+	});
+
+	it('does not request settings PIN status while auth is recovering without a session', async () => {
+		mockAuthContext.authState = 'grace';
+		mockAuthContext.session = null;
+
+		render(<ScannerScreen />);
+
+		fireEvent.press(screen.getByLabelText('Abrir configuración del dispositivo'));
+
+		await waitFor(() => {
+			expect(mockFetchDeviceSettingsPinStatus).not.toHaveBeenCalled();
+			expect(mockPush).not.toHaveBeenCalledWith('/(main)/settings');
+			expect(mockToastShow).toHaveBeenCalledWith(
+				expect.objectContaining({
+					variant: 'danger',
+					label: 'No se pudo validar el acceso',
+				}),
+			);
 		});
 	});
 
@@ -359,6 +432,25 @@ describe('ScannerScreen settings PIN gate', () => {
 
 		expect(await screen.findByText('PIN de configuración')).toBeOnTheScreen();
 		expect(mockPush).not.toHaveBeenCalledWith('/(main)/settings');
+	});
+
+	it('centers the OTP gate so the keyboard does not cover the confirmation action', async () => {
+		mockFetchDeviceSettingsPinStatus.mockResolvedValue({
+			deviceId: 'device-1',
+			mode: 'GLOBAL',
+			pinRequired: true,
+			source: 'GLOBAL',
+			globalPinConfigured: true,
+			deviceOverrideConfigured: false,
+		});
+
+		render(<ScannerScreen />);
+
+		fireEvent.press(screen.getByLabelText('Abrir configuración del dispositivo'));
+
+		const backdrop = await screen.findByTestId('settings-pin-modal-backdrop');
+		expect(backdrop).toHaveProp('className', expect.stringContaining('justify-center'));
+		expect(backdrop).not.toHaveProp('className', expect.stringContaining('justify-end'));
 	});
 
 	it('masks the entered settings PIN digits in the gate', async () => {

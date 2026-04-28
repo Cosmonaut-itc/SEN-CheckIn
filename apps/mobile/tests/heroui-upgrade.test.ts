@@ -5,9 +5,13 @@ import { existsSync } from 'fs';
  *
  * @returns Mobile package metadata relevant to dependency policy checks
  */
-function readMobilePackage(): { dependencies?: Record<string, string> } {
+function readMobilePackage(): {
+	dependencies?: Record<string, string>;
+	scripts?: Record<string, string>;
+} {
 	return require('../package.json') as {
 		dependencies?: Record<string, string>;
+		scripts?: Record<string, string>;
 	};
 }
 
@@ -49,5 +53,13 @@ describe('HeroUI Native dependency upgrade', () => {
 		expect(
 			candidateEntries.some((entry) => existsSync(require.resolve(`${packageRoot}${entry}`))),
 		).toBe(true);
+	});
+});
+
+describe('Expo Go development script', () => {
+	it('starts Expo Go in offline mode to avoid remote development certificate API failures', () => {
+		const mobilePackage = readMobilePackage();
+
+		expect(mobilePackage.scripts?.dev).toContain('--offline');
 	});
 });

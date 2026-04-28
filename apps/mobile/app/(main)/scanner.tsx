@@ -10,6 +10,7 @@ import NetInfo from '@react-native-community/netinfo';
 import {
 	AccessibilityInfo,
 	Animated,
+	KeyboardAvoidingView,
 	Modal,
 	Platform,
 	ScrollView,
@@ -230,7 +231,12 @@ export default function ScannerScreen(): JSX.Element {
 	const router = useRouter();
 	const { toast } = useToast();
 	const { clearSettings, settings } = useDeviceContext();
-	const { requestReauth } = useAuthContext();
+	const {
+		authState,
+		isLoading: isAuthLoading,
+		requestReauth,
+		session,
+	} = useAuthContext();
 	const { isDarkMode } = useTheme();
 	const insets = useSafeAreaInsets();
 	const [
@@ -352,6 +358,11 @@ export default function ScannerScreen(): JSX.Element {
 		CHECK_OUT: i18n.t('Scanner.success.checkedOut'),
 		WORK_OFFSITE: i18n.t('Scanner.success.workOffsiteNotSupported'),
 	};
+	const hasActiveSession = Boolean(session?.session);
+	const shouldForceSignOut = Boolean(settings?.deviceId) && !isAuthLoading && !hasActiveSession;
+	const primaryActionLabel = shouldForceSignOut
+		? i18n.t('Scanner.actions.signOut')
+		: attendanceActionLabels[attendanceType];
 	const attendanceAccent =
 		attendanceType === 'CHECK_IN'
 			? themeColors.success
@@ -359,7 +370,7 @@ export default function ScannerScreen(): JSX.Element {
 				? themeColors.warning
 				: themeColors.error;
 	const neutralGuideColor = withAlpha(themeColors.foreground, 0.8);
-	const ctaBackground = attendanceAccent;
+	const ctaBackground = shouldForceSignOut ? themeColors.error : attendanceAccent;
 	const ctaContentColor = 'white';
 	const linkButtonContentColor = isDarkMode ? themeColors.warning : themeColors.primary;
 	const needsDeviceSetup = Boolean(settings?.deviceId) && !settings?.locationId;
@@ -492,6 +503,14 @@ export default function ScannerScreen(): JSX.Element {
 			return;
 		}
 
+		if (isAuthLoading || authState === 'locked' || !session?.session) {
+			showSettingsPinErrorToast(
+				'Scanner.settingsPin.errors.accessTitle',
+				'Scanner.settingsPin.errors.statusDescription',
+			);
+			return;
+		}
+
 		setIsSettingsPinStatusLoading(true);
 		setSettingsPinError(null);
 
@@ -513,7 +532,14 @@ export default function ScannerScreen(): JSX.Element {
 		} finally {
 			setIsSettingsPinStatusLoading(false);
 		}
-	}, [openSettingsWithGrant, settings?.deviceId, showSettingsPinErrorToast]);
+	}, [
+		authState,
+		isAuthLoading,
+		openSettingsWithGrant,
+		session?.session,
+		settings?.deviceId,
+		showSettingsPinErrorToast,
+	]);
 
 	/**
 	 * Closes the settings PIN gate and clears entered digits.
@@ -940,6 +966,20 @@ export default function ScannerScreen(): JSX.Element {
 	};
 
 	/**
+	 * Runs the primary scanner action for the current auth state.
+	 *
+	 * @returns Promise that resolves after the selected action completes
+	 */
+	const handlePrimaryAction = async (): Promise<void> => {
+		if (shouldForceSignOut) {
+			await handleStartDeviceLinking();
+			return;
+		}
+
+		await handleCapture();
+	};
+
+	/**
 	 * Continues the check-out flow after the user selects the reason.
 	 *
 	 * @param checkOutReason - Selected check-out reason
@@ -1261,12 +1301,16 @@ export default function ScannerScreen(): JSX.Element {
 
 										{/* Scan button */}
 										<Button
-											onPress={handleCapture}
+											onPress={() => {
+												void handlePrimaryAction();
+											}}
 											isDisabled={isProcessing || !settings?.deviceId}
 											variant="primary"
 											className="w-full h-14"
 											accessibilityLabel={
-												attendanceActionLabels[attendanceType]
+												shouldForceSignOut
+													? i18n.t('Scanner.accessibility.signOut')
+													: attendanceActionLabels[attendanceType]
 											}
 											style={{
 												backgroundColor: ctaBackground,
@@ -1283,7 +1327,11 @@ export default function ScannerScreen(): JSX.Element {
 											) : (
 												<View className="flex-row items-center gap-2">
 													<IconSymbol
-														name="viewfinder"
+														name={
+															shouldForceSignOut
+																? 'rectangle.portrait.and.arrow.right'
+																: 'viewfinder'
+														}
 														size={22}
 														color={ctaContentColor}
 													/>
@@ -1291,7 +1339,7 @@ export default function ScannerScreen(): JSX.Element {
 														className="text-lg"
 														style={{ color: ctaContentColor }}
 													>
-														{attendanceActionLabels[attendanceType]}
+														{primaryActionLabel}
 													</Button.Label>
 												</View>
 											)}
@@ -1310,7 +1358,11 @@ export default function ScannerScreen(): JSX.Element {
 					animationType="slide"
 					onRequestClose={handleCloseSettingsPinGate}
 				>
-					<View className="flex-1 justify-end bg-overlay/70 px-4 pb-6">
+					<KeyboardAvoidingView
+						testID="settings-pin-modal-backdrop"
+						behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+						className="flex-1 justify-center bg-overlay/70 px-4 py-6"
+					>
 						<Card variant="default" style={continuousCurve}>
 							<Card.Body className="p-5 gap-5">
 								<View className="gap-2">
@@ -1405,7 +1457,7 @@ export default function ScannerScreen(): JSX.Element {
 								</View>
 							</Card.Body>
 						</Card>
-					</View>
+					</KeyboardAvoidingView>
 				</Modal>
 			) : null}
 			<CheckOutReasonSheet

@@ -36,8 +36,7 @@ jest.mock('expo-router', () => ({
 
 jest.mock('expo-camera', () => {
 	const ReactActual = jest.requireActual<typeof import('react')>('react');
-	const ReactNativeActual =
-		jest.requireActual<typeof import('react-native')>('react-native');
+	const ReactNativeActual = jest.requireActual<typeof import('react-native')>('react-native');
 
 	const CameraView = ReactActual.forwardRef((props: unknown, ref: React.Ref<unknown>) => {
 		ReactActual.useImperativeHandle(ref, () => ({
@@ -86,8 +85,7 @@ jest.mock('@/lib/api', () => ({
 }));
 
 jest.mock('heroui-native', () => {
-	const ReactNativeActual =
-		jest.requireActual<typeof import('react-native')>('react-native');
+	const ReactNativeActual = jest.requireActual<typeof import('react-native')>('react-native');
 	const { Pressable, Text, View } = ReactNativeActual;
 
 	const Button = function MockButton({
@@ -131,13 +129,17 @@ jest.mock('heroui-native', () => {
 		Button,
 		Card,
 		Spinner,
+		useToast: () => ({
+			toast: {
+				show: jest.fn(),
+			},
+		}),
 	};
 });
 
 jest.mock('@/components/ui/icon-symbol', () => ({
 	IconSymbol: function MockIconSymbol() {
-		const ReactNativeActual =
-			jest.requireActual<typeof import('react-native')>('react-native');
+		const ReactNativeActual = jest.requireActual<typeof import('react-native')>('react-native');
 		return <ReactNativeActual.View testID="icon-symbol" />;
 	},
 }));
@@ -148,8 +150,7 @@ jest.mock('@/components/attendance/check-out-reason-sheet', () => ({
 		onClose: () => void;
 		onSelectReason: (reason: string) => void;
 	}) {
-		const ReactNativeActual =
-			jest.requireActual<typeof import('react-native')>('react-native');
+		const ReactNativeActual = jest.requireActual<typeof import('react-native')>('react-native');
 		mockCheckOutReasonSheet(props);
 
 		return props.isOpen ? <ReactNativeActual.Text>sheet-open</ReactNativeActual.Text> : null;

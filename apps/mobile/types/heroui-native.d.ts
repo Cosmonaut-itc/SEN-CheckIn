@@ -17,6 +17,10 @@ declare module 'heroui-native' {
 	export { Description } from 'heroui-native/lib/typescript/src/components/description';
 	export { FieldError } from 'heroui-native/lib/typescript/src/components/field-error';
 	export { Input } from 'heroui-native/lib/typescript/src/components/input';
+	export {
+		InputOTP,
+		REGEXP_ONLY_DIGITS,
+	} from 'heroui-native/lib/typescript/src/components/input-otp';
 	export { Label } from 'heroui-native/lib/typescript/src/components/label';
 	export { Separator } from 'heroui-native/lib/typescript/src/components/separator';
 	export { Select } from 'heroui-native/lib/typescript/src/components/select';

@@ -21,6 +21,7 @@ import { useAppForm } from '@/lib/forms';
 import { i18n } from '@/lib/i18n';
 import { clearPendingAttendanceQueue } from '@/lib/offline-attendance';
 import { queryKeys } from '@/lib/query-keys';
+import { hasSettingsAccessGrant } from '@/lib/settings-access-guard';
 import { BODY_TEXT_CLASS_NAME } from '@/lib/typography';
 import { useAuthContext } from '@/providers/auth-provider';
 
@@ -49,6 +50,7 @@ export default function SettingsScreen(): JSX.Element {
 		clearSettings,
 	} = useDeviceContext();
 	const resolvedOrganizationId = activeOrganizationId ?? settings?.organizationId ?? null;
+	const hasSettingsAccess = hasSettingsAccessGrant(settings?.deviceId);
 
 	const {
 		data: locationsResponse,
@@ -132,6 +134,12 @@ export default function SettingsScreen(): JSX.Element {
 	const keyboardVerticalOffset = Platform.OS === 'ios' ? Math.max(insets.top, 16) : 0;
 	const signOutButtonVariant = Platform.OS === 'ios' ? 'ghost' : 'danger';
 
+	useEffect(() => {
+		if (!hasSettingsAccess) {
+			router.replace(SCANNER_ROUTE);
+		}
+	}, [hasSettingsAccess, router]);
+
 	/**
 	 * Navigate back to the previous screen when history exists.
 	 * Falls back to scanner replacement for direct-entry scenarios.
@@ -146,6 +154,33 @@ export default function SettingsScreen(): JSX.Element {
 
 		router.replace(SCANNER_ROUTE);
 	}, [navigation, router]);
+
+	if (!hasSettingsAccess) {
+		return (
+			<View className="flex-1 bg-background items-center justify-center px-6">
+				<Card variant="default" style={continuousCurve}>
+					<Card.Body className="p-6 gap-3 items-center">
+						<IconSymbol name="lock" size={32} color={iconColor} />
+						<Card.Title className="text-center text-xl text-foreground">
+							{i18n.t('Settings.accessBlocked.title')}
+						</Card.Title>
+						<Card.Description className="text-center text-foreground-500">
+							{i18n.t('Settings.accessBlocked.description')}
+						</Card.Description>
+						<Button
+							variant="primary"
+							className="w-full"
+							onPress={() => router.replace(SCANNER_ROUTE)}
+						>
+							<Button.Label>
+								{i18n.t('Settings.accessBlocked.backToScanner')}
+							</Button.Label>
+						</Button>
+					</Card.Body>
+				</Card>
+			</View>
+		);
+	}
 
 	return (
 		<View className="flex-1 bg-background">

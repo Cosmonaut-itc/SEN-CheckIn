@@ -15,6 +15,7 @@ const mockClearPendingAttendanceQueue = jest.fn();
 const mockClearSettings = jest.fn();
 const mockRouterReplace = jest.fn();
 const mockRequestReauth = jest.fn();
+const mockHasSettingsAccessGrant = jest.fn();
 let capturedFormConfig: {
 	onSubmit: (input: {
 		value: {
@@ -253,6 +254,14 @@ jest.mock('@/lib/query-keys', () => ({
 	},
 }));
 
+jest.mock(
+	'@/lib/settings-access-guard',
+	() => ({
+		hasSettingsAccessGrant: (...args: unknown[]) => mockHasSettingsAccessGrant(...args),
+	}),
+	{ virtual: true },
+);
+
 jest.mock('@/lib/typography', () => ({
 	BODY_TEXT_CLASS_NAME: 'body-text',
 }));
@@ -277,6 +286,7 @@ describe('SettingsScreen organization gating', () => {
 		mockClearSettings.mockReset();
 		mockRouterReplace.mockReset();
 		mockRequestReauth.mockReset();
+		mockHasSettingsAccessGrant.mockReset();
 		capturedFormConfig = null;
 
 		mockUseQuery.mockReturnValue({
@@ -301,6 +311,7 @@ describe('SettingsScreen organization gating', () => {
 			updateLocalSettings: jest.fn(),
 			clearSettings: mockClearSettings,
 		});
+		mockHasSettingsAccessGrant.mockReturnValue(true);
 	});
 
 	afterEach(() => {
@@ -316,6 +327,17 @@ describe('SettingsScreen organization gating', () => {
 			}),
 		);
 		expect(screen.getByTestId('location-select-disabled-state')).toHaveTextContent('disabled');
+	});
+
+	it('blocks direct settings entry when scanner has not granted access', async () => {
+		mockHasSettingsAccessGrant.mockReturnValue(false);
+
+		render(<SettingsScreen />);
+
+		await waitFor(() => {
+			expect(mockRouterReplace).toHaveBeenCalledWith('/(main)/scanner');
+		});
+		expect(screen.getByText('Settings.accessBlocked.title')).toBeOnTheScreen();
 	});
 
 	it('loads locations when session organization is missing but persisted device settings retain the organization context', async () => {

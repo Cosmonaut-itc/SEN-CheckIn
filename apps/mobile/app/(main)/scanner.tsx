@@ -1,7 +1,7 @@
 import { type CameraType, CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import { Redirect, useFocusEffect, useRouter, type Href } from 'expo-router';
-import { Button, Card, Spinner } from 'heroui-native';
+import { Button, Card, InputOTP, REGEXP_ONLY_DIGITS, Spinner, useToast } from 'heroui-native';
 import type { CheckOutReason } from '@sen-checkin/types';
 import { converter, formatRgb, parse } from 'culori';
 import type { JSX } from 'react';
@@ -10,6 +10,7 @@ import NetInfo from '@react-native-community/netinfo';
 import {
 	AccessibilityInfo,
 	Animated,
+	Modal,
 	Platform,
 	ScrollView,
 	Text,
@@ -32,19 +33,18 @@ import {
 	tryAcquireAttendanceCaptureLock,
 } from '@/lib/attendance-capture-lock';
 import { clearAuthStorage, signOut } from '@/lib/auth-client';
+import {
+	fetchDeviceSettingsPinStatus,
+	isDeviceSettingsPinError,
+	verifyDeviceSettingsPin,
+} from '@/lib/settings-pin-client';
 import { useDeviceContext } from '@/lib/device-context';
 import { i18n } from '@/lib/i18n';
-import {
-	FaceVerificationError,
-	recordAttendance,
-	verifyFace,
-} from '@/lib/face-recognition';
+import { FaceVerificationError, recordAttendance, verifyFace } from '@/lib/face-recognition';
 import { clearPendingAttendanceQueue, isOfflineNetInfoState } from '@/lib/offline-attendance';
 import type { AttendanceType } from '@/lib/query-keys';
-import {
-	cleanupRecognitionImage,
-	prepareRecognitionImage,
-} from '@/lib/recognition-image';
+import { cleanupRecognitionImage, prepareRecognitionImage } from '@/lib/recognition-image';
+import { grantSettingsAccess } from '@/lib/settings-access-guard';
 import { useAuthContext } from '@/providers/auth-provider';
 import { useTheme } from '@/providers/theme-provider';
 
@@ -75,6 +75,7 @@ type ScannerThemeColors = {
 const MAX_FACE_GUIDE_SIZE = 400;
 const ATTENDANCE_TYPE_ORDER: AttendanceType[] = ['CHECK_IN', 'CHECK_OUT_AUTHORIZED', 'CHECK_OUT'];
 const DEVICE_SETUP_ROUTE = '/(auth)/device-setup' as Href;
+const SETTINGS_ROUTE = '/(main)/settings' as Href;
 const convertResolvedThemeColorToRgb = converter('rgb');
 
 /**
@@ -121,13 +122,7 @@ function logRecognitionAttempt(diagnostics: {
  * @param props - Size and stroke color for the icon
  * @returns {JSX.Element} Link icon
  */
-function DeviceLinkIcon({
-	size,
-	color,
-}: {
-	size: number;
-	color: string;
-}): JSX.Element {
+function DeviceLinkIcon({ size, color }: { size: number; color: string }): JSX.Element {
 	return (
 		<Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
 			<Path
@@ -193,11 +188,7 @@ export function withAlpha(color: string, alpha: number): string {
 		/^#(?<red>[0-9a-fA-F]{2})(?<green>[0-9a-fA-F]{2})(?<blue>[0-9a-fA-F]{2})(?:[0-9a-fA-F]{2})?$/,
 	);
 
-	if (
-		fullHexMatch?.groups?.red &&
-		fullHexMatch.groups.green &&
-		fullHexMatch.groups.blue
-	) {
+	if (fullHexMatch?.groups?.red && fullHexMatch.groups.green && fullHexMatch.groups.blue) {
 		return `#${fullHexMatch.groups.red}${fullHexMatch.groups.green}${fullHexMatch.groups.blue}${alphaHex}`;
 	}
 
@@ -205,11 +196,7 @@ export function withAlpha(color: string, alpha: number): string {
 		/^#(?<red>[0-9a-fA-F])(?<green>[0-9a-fA-F])(?<blue>[0-9a-fA-F])(?:[0-9a-fA-F])?$/,
 	);
 
-	if (
-		shortHexMatch?.groups?.red &&
-		shortHexMatch.groups.green &&
-		shortHexMatch.groups.blue
-	) {
+	if (shortHexMatch?.groups?.red && shortHexMatch.groups.green && shortHexMatch.groups.blue) {
 		return `#${shortHexMatch.groups.red.repeat(2)}${shortHexMatch.groups.green.repeat(2)}${shortHexMatch.groups.blue.repeat(2)}${alphaHex}`;
 	}
 
@@ -217,10 +204,7 @@ export function withAlpha(color: string, alpha: number): string {
 
 	if (rgbMatch?.groups?.red && rgbMatch.groups.green && rgbMatch.groups.blue) {
 		const redHex = Number(rgbMatch.groups.red).toString(16).padStart(2, '0').toUpperCase();
-		const greenHex = Number(rgbMatch.groups.green)
-			.toString(16)
-			.padStart(2, '0')
-			.toUpperCase();
+		const greenHex = Number(rgbMatch.groups.green).toString(16).padStart(2, '0').toUpperCase();
 		const blueHex = Number(rgbMatch.groups.blue).toString(16).padStart(2, '0').toUpperCase();
 		return `#${redHex}${greenHex}${blueHex}${alphaHex}`;
 	}
@@ -243,6 +227,7 @@ export default function ScannerScreen(): JSX.Element {
 	const cameraRef = useRef<CameraView | null>(null);
 	const [permission, requestPermission] = useCameraPermissions();
 	const router = useRouter();
+	const { toast } = useToast();
 	const { clearSettings, settings } = useDeviceContext();
 	const { requestReauth } = useAuthContext();
 	const { isDarkMode } = useTheme();
@@ -329,6 +314,11 @@ export default function ScannerScreen(): JSX.Element {
 
 	const [attendanceType, setAttendanceType] = useState<AttendanceType>('CHECK_IN');
 	const [isCheckOutReasonSheetOpen, setIsCheckOutReasonSheetOpen] = useState(false);
+	const [isSettingsPinGateOpen, setIsSettingsPinGateOpen] = useState(false);
+	const [settingsPin, setSettingsPin] = useState('');
+	const [settingsPinError, setSettingsPinError] = useState<string | null>(null);
+	const [isSettingsPinStatusLoading, setIsSettingsPinStatusLoading] = useState(false);
+	const [isSettingsPinVerifying, setIsSettingsPinVerifying] = useState(false);
 	const [isProcessing, setIsProcessing] = useState(false);
 	const [isOffline, setIsOffline] = useState(false);
 	const [currentTime, setCurrentTime] = useState(() =>
@@ -438,7 +428,10 @@ export default function ScannerScreen(): JSX.Element {
 			try {
 				await clearPendingAttendanceQueue();
 			} catch (error) {
-				console.warn('[scanner] Offline queue cleanup error during device relinking', error);
+				console.warn(
+					'[scanner] Offline queue cleanup error during device relinking',
+					error,
+				);
 			}
 			try {
 				await clearSettings();
@@ -448,6 +441,150 @@ export default function ScannerScreen(): JSX.Element {
 			router.replace('/(auth)/login');
 		}
 	}, [clearSettings, requestReauth, router]);
+
+	/**
+	 * Grants settings access in memory and opens the settings route.
+	 *
+	 * @param deviceId - Device identifier receiving access
+	 * @returns No return value
+	 */
+	const openSettingsWithGrant = useCallback(
+		(deviceId: string): void => {
+			grantSettingsAccess(deviceId);
+			router.push(SETTINGS_ROUTE);
+		},
+		[router],
+	);
+
+	/**
+	 * Shows a standardized settings PIN error toast.
+	 *
+	 * @param labelKey - Translation key for the toast label
+	 * @param descriptionKey - Translation key for the toast description
+	 * @returns No return value
+	 */
+	const showSettingsPinErrorToast = useCallback(
+		(labelKey: string, descriptionKey: string): void => {
+			toast.show({
+				variant: 'danger',
+				label: i18n.t(labelKey),
+				description: i18n.t(descriptionKey),
+				actionLabel: i18n.t('Common.dismiss'),
+				onActionPress: ({ hide }: { hide: () => void }) => hide(),
+			});
+		},
+		[toast],
+	);
+
+	/**
+	 * Fetches PIN status before opening settings.
+	 *
+	 * @returns Promise that resolves once the access decision is handled
+	 */
+	const handleOpenSettings = useCallback(async (): Promise<void> => {
+		const deviceId = settings?.deviceId;
+		if (!deviceId) {
+			showSettingsPinErrorToast(
+				'Scanner.settingsPin.errors.accessTitle',
+				'Scanner.settingsPin.errors.deviceMissing',
+			);
+			return;
+		}
+
+		setIsSettingsPinStatusLoading(true);
+		setSettingsPinError(null);
+
+		try {
+			const status = await fetchDeviceSettingsPinStatus(deviceId);
+			if (!status.pinRequired) {
+				openSettingsWithGrant(deviceId);
+				return;
+			}
+
+			setSettingsPin('');
+			setIsSettingsPinGateOpen(true);
+		} catch (error) {
+			console.error('[scanner] Failed to load settings PIN status', error);
+			showSettingsPinErrorToast(
+				'Scanner.settingsPin.errors.accessTitle',
+				'Scanner.settingsPin.errors.statusDescription',
+			);
+		} finally {
+			setIsSettingsPinStatusLoading(false);
+		}
+	}, [openSettingsWithGrant, settings?.deviceId, showSettingsPinErrorToast]);
+
+	/**
+	 * Closes the settings PIN gate and clears entered digits.
+	 *
+	 * @returns No return value
+	 */
+	const handleCloseSettingsPinGate = useCallback((): void => {
+		if (isSettingsPinVerifying) {
+			return;
+		}
+
+		setSettingsPin('');
+		setSettingsPinError(null);
+		setIsSettingsPinGateOpen(false);
+	}, [isSettingsPinVerifying]);
+
+	/**
+	 * Verifies the entered PIN online before opening settings.
+	 *
+	 * @returns Promise that resolves once verification is handled
+	 */
+	const handleVerifySettingsPin = useCallback(async (): Promise<void> => {
+		const deviceId = settings?.deviceId;
+		if (!deviceId) {
+			showSettingsPinErrorToast(
+				'Scanner.settingsPin.errors.accessTitle',
+				'Scanner.settingsPin.errors.deviceMissing',
+			);
+			return;
+		}
+
+		if (settingsPin.length !== 4) {
+			setSettingsPinError(i18n.t('Scanner.settingsPin.errors.incomplete'));
+			return;
+		}
+
+		setIsSettingsPinVerifying(true);
+		setSettingsPinError(null);
+
+		try {
+			const result = await verifyDeviceSettingsPin(deviceId, settingsPin);
+			if (!result.valid) {
+				setSettingsPin('');
+				setSettingsPinError(i18n.t('Scanner.settingsPin.errors.invalid'));
+				return;
+			}
+
+			setSettingsPin('');
+			setIsSettingsPinGateOpen(false);
+			openSettingsWithGrant(deviceId);
+		} catch (error) {
+			console.error('[scanner] Failed to verify settings PIN', error);
+			const isRateLimited = isDeviceSettingsPinError(error) && error.code === 'RATE_LIMITED';
+			showSettingsPinErrorToast(
+				isRateLimited
+					? 'Scanner.settingsPin.errors.lockoutTitle'
+					: 'Scanner.settingsPin.errors.verifyTitle',
+				isRateLimited
+					? 'Scanner.settingsPin.errors.lockoutDescription'
+					: 'Scanner.settingsPin.errors.verifyDescription',
+			);
+			setSettingsPinError(
+				i18n.t(
+					isRateLimited
+						? 'Scanner.settingsPin.errors.lockoutDescription'
+						: 'Scanner.settingsPin.errors.verifyDescription',
+				),
+			);
+		} finally {
+			setIsSettingsPinVerifying(false);
+		}
+	}, [openSettingsWithGrant, settings?.deviceId, settingsPin, showSettingsPinErrorToast]);
 
 	/**
 	 * Cycles between CHECK_IN, CHECK_OUT_AUTHORIZED, and CHECK_OUT attendance types
@@ -755,16 +892,13 @@ export default function ScannerScreen(): JSX.Element {
 			}
 		} catch (error) {
 			console.error('Face verification failed:', error);
-			const retryableFailure =
-				error instanceof FaceVerificationError && error.retryable;
+			const retryableFailure = error instanceof FaceVerificationError && error.retryable;
 			logRecognitionAttempt({
 				captureMs,
 				preprocessMs,
 				payloadBytes,
 				uploadServerMs:
-					verificationStartedAt === null
-						? 0
-						: performance.now() - verificationStartedAt,
+					verificationStartedAt === null ? 0 : performance.now() - verificationStartedAt,
 				totalMs: performance.now() - totalStartedAt,
 				networkType,
 				status: error instanceof FaceVerificationError ? error.status : 500,
@@ -887,252 +1021,378 @@ export default function ScannerScreen(): JSX.Element {
 				contentContainerStyle={styles.scrollContent}
 				scrollEnabled={false}
 			>
-			<View style={styles.container}>
-				{/* Camera View */}
-				{/* Key prop forces re-mount when camera facing changes to fix initialization issues */}
-				{isCameraReady && (
-					<CameraView
-						key={`camera-${cameraFacing}`}
-						ref={cameraRef}
-						pointerEvents="none"
-						style={styles.camera}
-						facing={cameraFacing}
-						enableTorch={false}
-						animateShutter
-					/>
-				)}
+				<View style={styles.container}>
+					{/* Camera View */}
+					{/* Key prop forces re-mount when camera facing changes to fix initialization issues */}
+					{isCameraReady && (
+						<CameraView
+							key={`camera-${cameraFacing}`}
+							ref={cameraRef}
+							pointerEvents="none"
+							style={styles.camera}
+							facing={cameraFacing}
+							enableTorch={false}
+							animateShutter
+						/>
+					)}
 
-				{/* Top Bar - Attendance Type Toggle & Settings */}
-				<View style={styles.topBar}>
-					<Button
-						variant="secondary"
-						size="md"
-						className="flex-1 flex-row items-center gap-2 justify-center rounded-full"
-						onPress={toggleAttendanceType}
-						accessibilityLabel={i18n.t('Scanner.accessibility.toggleAttendanceType')}
-					>
-						<View style={styles.toggleIndicator}>
-							<View
-								style={[styles.toggleDot, { backgroundColor: attendanceAccent }]}
+					{/* Top Bar - Attendance Type Toggle & Settings */}
+					<View style={styles.topBar}>
+						<Button
+							variant="secondary"
+							size="md"
+							className="flex-1 flex-row items-center gap-2 justify-center rounded-full"
+							onPress={toggleAttendanceType}
+							accessibilityLabel={i18n.t(
+								'Scanner.accessibility.toggleAttendanceType',
+							)}
+						>
+							<View style={styles.toggleIndicator}>
+								<View
+									style={[
+										styles.toggleDot,
+										{ backgroundColor: attendanceAccent },
+									]}
+								/>
+							</View>
+							<Button.Label className="text-base font-semibold">
+								{attendanceLabels[attendanceType]}
+							</Button.Label>
+							<IconSymbol
+								name="arrow.left.arrow.right"
+								size={18}
+								color={themeColors.foreground500}
 							/>
-						</View>
-						<Button.Label className="text-base font-semibold">
-							{attendanceLabels[attendanceType]}
-						</Button.Label>
-						<IconSymbol
-							name="arrow.left.arrow.right"
-							size={18}
-							color={themeColors.foreground500}
-						/>
-					</Button>
-					<Button
-						variant="secondary"
-						isIconOnly
-						size="md"
-						className="w-12 h-12 rounded-full"
-						onPress={() => router.push('/(main)/face-enrollment')}
-						accessibilityLabel={i18n.t('Scanner.actions.openFaceEnrollment')}
-					>
-						<IconSymbol
-							name="person.crop.circle.badge.plus"
-							size={20}
-							color={themeColors.foreground}
-						/>
-					</Button>
-					<Button
-						variant="secondary"
-						isIconOnly
-						size="md"
-						className="w-12 h-12 rounded-full"
-						onPress={() => router.push('/(main)/settings')}
-						accessibilityLabel={i18n.t('Scanner.accessibility.openSettings')}
-					>
-						<IconSymbol name="gearshape" size={20} color={themeColors.foreground} />
-					</Button>
-				</View>
+						</Button>
+						<Button
+							variant="secondary"
+							isIconOnly
+							size="md"
+							className="w-12 h-12 rounded-full"
+							onPress={() => router.push('/(main)/face-enrollment')}
+							accessibilityLabel={i18n.t('Scanner.actions.openFaceEnrollment')}
+						>
+							<IconSymbol
+								name="person.crop.circle.badge.plus"
+								size={20}
+								color={themeColors.foreground}
+							/>
+						</Button>
+						<Button
+							variant="secondary"
+							isIconOnly
+							size="md"
+							className="w-12 h-12 rounded-full"
+							isDisabled={isSettingsPinStatusLoading}
+							onPress={() => {
+								void handleOpenSettings();
+							}}
+							accessibilityLabel={i18n.t('Scanner.accessibility.openSettings')}
+						>
+							{isSettingsPinStatusLoading ? (
+								<Spinner size="sm" color={themeColors.foreground} />
+							) : (
+								<IconSymbol
+									name="gearshape"
+									size={20}
+									color={themeColors.foreground}
+								/>
+							)}
+						</Button>
+					</View>
 
-				{/* Face Guide Overlay */}
-				<View style={styles.faceGuideContainer}>
-					<Animated.View
-						style={[
-							styles.faceGuideWrapper,
-							{
-								width: faceGuideSize,
-								height: faceGuideSize,
-								transform: [{ scale: pulseAnim }],
-							},
-						]}
-					>
+					{/* Face Guide Overlay */}
+					<View style={styles.faceGuideContainer}>
 						<Animated.View
 							style={[
-								styles.faceGuide,
+								styles.faceGuideWrapper,
 								{
-									width: '100%',
-									height: '100%',
-									borderRadius: faceGuideSize / 2,
-									borderColor: borderColor as unknown as string,
+									width: faceGuideSize,
+									height: faceGuideSize,
+									transform: [{ scale: pulseAnim }],
 								},
 							]}
 						>
-							{/* Corner accents */}
-							<View style={[styles.cornerAccent, styles.cornerTopLeft]} />
-							<View style={[styles.cornerAccent, styles.cornerTopRight]} />
-							<View style={[styles.cornerAccent, styles.cornerBottomLeft]} />
-							<View style={[styles.cornerAccent, styles.cornerBottomRight]} />
-						</Animated.View>
-					</Animated.View>
-
-					{/* Instruction text below face guide */}
-					<Animated.View
-						accessible
-						accessibilityLiveRegion="polite"
-						accessibilityRole="alert"
-						style={[styles.instructionContainer, { opacity: statusOpacity }]}
-					>
-						{scanStatus.state === 'success' && scanStatus.employeeName ? (
-							<>
-								<IconSymbol
-									name="checkmark.circle"
-									size={28}
-									color={themeColors.success}
-								/>
-								<Text style={styles.employeeName}>{scanStatus.employeeName}</Text>
-							</>
-						) : scanStatus.state === 'error' ? (
-							<IconSymbol name="xmark.circle" size={28} color={themeColors.error} />
-						) : scanStatus.state === 'scanning' ? (
-							<Spinner size="sm" color={themeColors.foreground} />
-						) : null}
-						<Text style={styles.instructionText}>{scanStatus.message}</Text>
-					</Animated.View>
-				</View>
-
-				{/* Bottom Status Card */}
-				<View style={styles.bottomContainer}>
-					<Card
-						variant="default"
-						className="bg-background/90 backdrop-blur-md border-default-200"
-						style={continuousCurve}
-					>
-						<Card.Body className="p-4 gap-4">
-							{isOffline ? (
-								<View className="rounded-2xl border border-warning-500/30 bg-warning-500/10 px-4 py-3 flex-row items-start gap-3">
-									<IconSymbol
-										name="wifi.slash"
-										size={18}
-										color={themeColors.warning}
-									/>
-									<View className="flex-1 gap-1">
-										<Text className="text-sm font-semibold text-foreground">
-											{i18n.t('Scanner.offline.title')}
-										</Text>
-										<Text className="text-xs text-foreground-500 leading-5">
-											{i18n.t('Scanner.offline.description')}
-										</Text>
-									</View>
-								</View>
-							) : null}
-							{!settings?.deviceId ? (
-								<EmptyState
-									title={i18n.t('Scanner.emptyState.title')}
-									description={i18n.t('Scanner.emptyState.description')}
-									actionLabel={i18n.t('Scanner.emptyState.action')}
-									onAction={() => {
-										void handleStartDeviceLinking();
-									}}
-									icon={<DeviceLinkIcon size={20} color={linkButtonContentColor} />}
-								/>
-							) : (
-								<>
-							{/* Device status row */}
-							<View className="flex-row items-start justify-between gap-3">
-								<View className="flex-1 gap-1.5">
-									<View className="flex-row items-center gap-2">
-										<View
-											className={`w-2.5 h-2.5 rounded-full ${settings?.deviceId ? 'bg-success-500' : 'bg-warning-500'}`}
-										/>
-										<Text className="text-foreground text-sm font-medium">
-											{settings?.deviceId
-												? settings.name ||
-													i18n.t('Scanner.deviceStatus.terminalFallback')
-												: i18n.t('Scanner.deviceStatus.deviceNotLinked')}
-										</Text>
-									</View>
-									{!settings?.deviceId ? (
-										<Text className="text-foreground-400 text-xs leading-5 pl-[18px]">
-											{i18n.t('Scanner.deviceStatus.setupRequired')}
-										</Text>
-									) : null}
-								</View>
-								<View className="flex-row items-center gap-1 pt-0.5">
-									<IconSymbol
-										name={
-											settings?.deviceId
-												? 'checkmark.circle'
-												: 'exclamationmark.circle'
-										}
-										size={14}
-										color={
-											settings?.deviceId
-												? themeColors.success
-												: themeColors.warning
-										}
-									/>
-									{settings?.deviceId ? (
-										<Text className="text-foreground-400 text-xs">
-											{i18n.t('Scanner.deviceStatus.connected')}
-										</Text>
-									) : null}
-								</View>
-							</View>
-
-							<Text className="text-center text-3xl font-bold text-foreground tracking-wide">
-								{currentTime}
-							</Text>
-
-							{/* Scan button */}
-							<Button
-								onPress={handleCapture}
-								isDisabled={isProcessing || !settings?.deviceId}
-								variant="primary"
-								className="w-full h-14"
-								accessibilityLabel={attendanceActionLabels[attendanceType]}
-								style={{
-									backgroundColor: ctaBackground,
-									borderColor: ctaBackground,
-								}}
+							<Animated.View
+								style={[
+									styles.faceGuide,
+									{
+										width: '100%',
+										height: '100%',
+										borderRadius: faceGuideSize / 2,
+										borderColor: borderColor as unknown as string,
+									},
+								]}
 							>
-								{isProcessing ? (
-									<View className="flex-row items-center gap-3">
-										<Spinner size="sm" color={ctaContentColor} />
-										<Button.Label className="text-lg">
-											{i18n.t('Scanner.actions.verifying')}
-										</Button.Label>
-									</View>
-								) : (
-									<View className="flex-row items-center gap-2">
-										<IconSymbol
-											name="viewfinder"
-											size={22}
-											color={ctaContentColor}
-										/>
-										<Button.Label
-											className="text-lg"
-											style={{ color: ctaContentColor }}
-										>
-											{attendanceActionLabels[attendanceType]}
-										</Button.Label>
-									</View>
-								)}
-							</Button>
+								{/* Corner accents */}
+								<View style={[styles.cornerAccent, styles.cornerTopLeft]} />
+								<View style={[styles.cornerAccent, styles.cornerTopRight]} />
+								<View style={[styles.cornerAccent, styles.cornerBottomLeft]} />
+								<View style={[styles.cornerAccent, styles.cornerBottomRight]} />
+							</Animated.View>
+						</Animated.View>
 
+						{/* Instruction text below face guide */}
+						<Animated.View
+							accessible
+							accessibilityLiveRegion="polite"
+							accessibilityRole="alert"
+							style={[styles.instructionContainer, { opacity: statusOpacity }]}
+						>
+							{scanStatus.state === 'success' && scanStatus.employeeName ? (
+								<>
+									<IconSymbol
+										name="checkmark.circle"
+										size={28}
+										color={themeColors.success}
+									/>
+									<Text style={styles.employeeName}>
+										{scanStatus.employeeName}
+									</Text>
 								</>
-							)}
-						</Card.Body>
-					</Card>
+							) : scanStatus.state === 'error' ? (
+								<IconSymbol
+									name="xmark.circle"
+									size={28}
+									color={themeColors.error}
+								/>
+							) : scanStatus.state === 'scanning' ? (
+								<Spinner size="sm" color={themeColors.foreground} />
+							) : null}
+							<Text style={styles.instructionText}>{scanStatus.message}</Text>
+						</Animated.View>
+					</View>
+
+					{/* Bottom Status Card */}
+					<View style={styles.bottomContainer}>
+						<Card
+							variant="default"
+							className="bg-background/90 backdrop-blur-md border-default-200"
+							style={continuousCurve}
+						>
+							<Card.Body className="p-4 gap-4">
+								{isOffline ? (
+									<View className="rounded-2xl border border-warning-500/30 bg-warning-500/10 px-4 py-3 flex-row items-start gap-3">
+										<IconSymbol
+											name="wifi.slash"
+											size={18}
+											color={themeColors.warning}
+										/>
+										<View className="flex-1 gap-1">
+											<Text className="text-sm font-semibold text-foreground">
+												{i18n.t('Scanner.offline.title')}
+											</Text>
+											<Text className="text-xs text-foreground-500 leading-5">
+												{i18n.t('Scanner.offline.description')}
+											</Text>
+										</View>
+									</View>
+								) : null}
+								{!settings?.deviceId ? (
+									<EmptyState
+										title={i18n.t('Scanner.emptyState.title')}
+										description={i18n.t('Scanner.emptyState.description')}
+										actionLabel={i18n.t('Scanner.emptyState.action')}
+										onAction={() => {
+											void handleStartDeviceLinking();
+										}}
+										icon={
+											<DeviceLinkIcon
+												size={20}
+												color={linkButtonContentColor}
+											/>
+										}
+									/>
+								) : (
+									<>
+										{/* Device status row */}
+										<View className="flex-row items-start justify-between gap-3">
+											<View className="flex-1 gap-1.5">
+												<View className="flex-row items-center gap-2">
+													<View
+														className={`w-2.5 h-2.5 rounded-full ${settings?.deviceId ? 'bg-success-500' : 'bg-warning-500'}`}
+													/>
+													<Text className="text-foreground text-sm font-medium">
+														{settings?.deviceId
+															? settings.name ||
+																i18n.t(
+																	'Scanner.deviceStatus.terminalFallback',
+																)
+															: i18n.t(
+																	'Scanner.deviceStatus.deviceNotLinked',
+																)}
+													</Text>
+												</View>
+												{!settings?.deviceId ? (
+													<Text className="text-foreground-400 text-xs leading-5 pl-[18px]">
+														{i18n.t(
+															'Scanner.deviceStatus.setupRequired',
+														)}
+													</Text>
+												) : null}
+											</View>
+											<View className="flex-row items-center gap-1 pt-0.5">
+												<IconSymbol
+													name={
+														settings?.deviceId
+															? 'checkmark.circle'
+															: 'exclamationmark.circle'
+													}
+													size={14}
+													color={
+														settings?.deviceId
+															? themeColors.success
+															: themeColors.warning
+													}
+												/>
+												{settings?.deviceId ? (
+													<Text className="text-foreground-400 text-xs">
+														{i18n.t('Scanner.deviceStatus.connected')}
+													</Text>
+												) : null}
+											</View>
+										</View>
+
+										<Text className="text-center text-3xl font-bold text-foreground tracking-wide">
+											{currentTime}
+										</Text>
+
+										{/* Scan button */}
+										<Button
+											onPress={handleCapture}
+											isDisabled={isProcessing || !settings?.deviceId}
+											variant="primary"
+											className="w-full h-14"
+											accessibilityLabel={
+												attendanceActionLabels[attendanceType]
+											}
+											style={{
+												backgroundColor: ctaBackground,
+												borderColor: ctaBackground,
+											}}
+										>
+											{isProcessing ? (
+												<View className="flex-row items-center gap-3">
+													<Spinner size="sm" color={ctaContentColor} />
+													<Button.Label className="text-lg">
+														{i18n.t('Scanner.actions.verifying')}
+													</Button.Label>
+												</View>
+											) : (
+												<View className="flex-row items-center gap-2">
+													<IconSymbol
+														name="viewfinder"
+														size={22}
+														color={ctaContentColor}
+													/>
+													<Button.Label
+														className="text-lg"
+														style={{ color: ctaContentColor }}
+													>
+														{attendanceActionLabels[attendanceType]}
+													</Button.Label>
+												</View>
+											)}
+										</Button>
+									</>
+								)}
+							</Card.Body>
+						</Card>
+					</View>
 				</View>
-			</View>
 			</ScrollView>
+			{isSettingsPinGateOpen ? (
+				<Modal
+					visible={isSettingsPinGateOpen}
+					transparent
+					animationType="slide"
+					onRequestClose={handleCloseSettingsPinGate}
+				>
+					<View className="flex-1 justify-end bg-overlay/70 px-4 pb-6">
+						<Card variant="default" style={continuousCurve}>
+							<Card.Body className="p-5 gap-5">
+								<View className="gap-2">
+									<Card.Title className="text-xl text-foreground">
+										{i18n.t('Scanner.settingsPin.title')}
+									</Card.Title>
+									<Card.Description className="text-foreground-500">
+										{i18n.t('Scanner.settingsPin.description')}
+									</Card.Description>
+								</View>
+
+								<View className="items-center gap-3">
+									<InputOTP
+										value={settingsPin}
+										onChange={(value: string) => {
+											setSettingsPin(value.replace(/\D/g, '').slice(0, 4));
+											setSettingsPinError(null);
+										}}
+										maxLength={4}
+										pattern={REGEXP_ONLY_DIGITS}
+										inputMode="numeric"
+										isDisabled={isSettingsPinVerifying}
+										isInvalid={Boolean(settingsPinError)}
+										textInputProps={{
+											accessibilityLabel: i18n.t(
+												'Scanner.settingsPin.inputLabel',
+											),
+										}}
+									>
+										<InputOTP.Group className="flex-row gap-3">
+											<InputOTP.Slot index={0} />
+											<InputOTP.Slot index={1} />
+											<InputOTP.Slot index={2} />
+											<InputOTP.Slot index={3} />
+										</InputOTP.Group>
+									</InputOTP>
+									{settingsPinError ? (
+										<Text
+											className="text-danger-500 text-sm font-medium text-center"
+											accessibilityRole="alert"
+										>
+											{settingsPinError}
+										</Text>
+									) : null}
+								</View>
+
+								<View className="flex-row gap-3">
+									<Button
+										variant="secondary"
+										className="flex-1"
+										isDisabled={isSettingsPinVerifying}
+										onPress={handleCloseSettingsPinGate}
+									>
+										<Button.Label>{i18n.t('Common.cancel')}</Button.Label>
+									</Button>
+									<Button
+										variant="primary"
+										className="flex-1"
+										isDisabled={isSettingsPinVerifying}
+										onPress={() => {
+											void handleVerifySettingsPin();
+										}}
+									>
+										{isSettingsPinVerifying ? (
+											<View className="flex-row items-center gap-2">
+												<Spinner size="sm" color={ctaContentColor} />
+												<Button.Label>
+													{i18n.t(
+														'Scanner.settingsPin.actions.verifying',
+													)}
+												</Button.Label>
+											</View>
+										) : (
+											<Button.Label>
+												{i18n.t('Scanner.settingsPin.actions.verify')}
+											</Button.Label>
+										)}
+									</Button>
+								</View>
+							</Card.Body>
+						</Card>
+					</View>
+				</Modal>
+			) : null}
 			<CheckOutReasonSheet
 				isOpen={isCheckOutReasonSheetOpen}
 				onClose={() => setIsCheckOutReasonSheetOpen(false)}

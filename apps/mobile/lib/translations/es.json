@@ -32,7 +32,9 @@
 			"heartbeatMissingData": "La validación del dispositivo no devolvió datos válidos.",
 			"loadAttendanceRecords": "No se pudieron cargar los registros de asistencia.",
 			"createAttendanceRecord": "No se pudo registrar la asistencia.",
-			"attendanceRecordMissingData": "La respuesta del registro de asistencia no devolvió datos válidos."
+			"attendanceRecordMissingData": "La respuesta del registro de asistencia no devolvió datos válidos.",
+			"settingsPinAccess": "No se pudo validar el acceso a configuración.",
+			"settingsPinMissingData": "La validación de acceso a configuración no devolvió datos válidos."
 		}
 	},
 	"Login": {
@@ -174,6 +176,26 @@
 			"title": "Sin conexión",
 			"description": "Los registros se guardarán y se enviarán cuando vuelva la red."
 		},
+		"settingsPin": {
+			"title": "PIN de configuración",
+			"description": "Ingresa el PIN de 4 dígitos para abrir la configuración.",
+			"inputLabel": "PIN de configuración",
+			"actions": {
+				"verify": "Validar PIN",
+				"verifying": "Validando..."
+			},
+			"errors": {
+				"accessTitle": "No se pudo validar el acceso",
+				"deviceMissing": "Este dispositivo no está vinculado.",
+				"statusDescription": "Revisa la conexión e inténtalo de nuevo.",
+				"verifyTitle": "No se pudo validar el PIN",
+				"verifyDescription": "No pudimos validar el PIN en línea. Inténtalo de nuevo.",
+				"lockoutTitle": "Acceso bloqueado temporalmente",
+				"lockoutDescription": "Demasiados intentos incorrectos. Espera un momento e inténtalo de nuevo.",
+				"incomplete": "Ingresa los 4 dígitos del PIN.",
+				"invalid": "PIN incorrecto. Inténtalo de nuevo."
+			}
+		},
 		"actions": {
 			"verifying": "Verificando...",
 			"scanCheckIn": "Escanear entrada",
@@ -263,6 +285,11 @@
 	"Settings": {
 		"title": "Configuración",
 		"subtitle": "Administra los datos de este dispositivo.",
+		"accessBlocked": {
+			"title": "Acceso a configuración bloqueado",
+			"description": "Abre la configuración desde el escáner y valida el PIN.",
+			"backToScanner": "Volver al escáner"
+		},
 		"navigation": {
 			"backToScanner": "Volver al escáner"
 		},

@@ -224,6 +224,20 @@ function toRawBase64Image(imageBase64: string): string {
  */
 export type DeviceDetail = Device & { organizationId?: string | null };
 
+export {
+	DeviceSettingsPinError,
+	fetchDeviceSettingsPinStatus,
+	isDeviceSettingsPinError,
+	verifyDeviceSettingsPin,
+} from './settings-pin-client';
+export type {
+	DeviceSettingsPinErrorCode,
+	DeviceSettingsPinMode,
+	DeviceSettingsPinSource,
+	DeviceSettingsPinStatus,
+	DeviceSettingsPinVerification,
+} from './settings-pin-client';
+
 /**
  * Input payload for registering a device.
  */

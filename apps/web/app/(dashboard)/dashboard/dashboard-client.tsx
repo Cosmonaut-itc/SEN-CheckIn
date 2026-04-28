@@ -9,12 +9,15 @@ import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useTour } from '@/hooks/use-tour';
 import {
 	fetchAttendanceHourly,
 	fetchAttendanceOffsiteToday,
 	fetchAttendancePresent,
+	fetchAttendanceStaffingCoverage,
+	fetchAttendanceStaffingCoverageStats,
 	fetchAttendanceTimeline,
 	fetchDashboardCounts,
 	fetchDashboardLocationCapacity,
@@ -22,6 +25,9 @@ import {
 	fetchLocationsAll,
 	fetchWeather,
 	type AttendancePresentRecord,
+	type StaffingCoverageItem,
+	type StaffingCoverageStatsItem,
+	type StaffingCoverageStatsSummary,
 	type Location,
 } from '@/lib/client-functions';
 import { useOrgContext } from '@/lib/org-client-context';
@@ -67,6 +73,89 @@ interface LocationWithPresence extends Location {
 	employeeCount: number;
 	presentCount: number;
 	selectionDisabled: boolean;
+}
+
+interface StaffingCoverageDisplayRow extends StaffingCoverageItem {
+	stats: StaffingCoverageStatsItem | null;
+}
+
+/**
+ * Builds a map of staffing coverage statistics keyed by requirement identifier.
+ *
+ * @param statsItems - Aggregate staffing coverage rows
+ * @returns Statistics keyed by requirement id
+ */
+function buildStaffingStatsByRequirementId(
+	statsItems: StaffingCoverageStatsItem[],
+): Map<string, StaffingCoverageStatsItem> {
+	return new Map(statsItems.map((item) => [item.requirementId, item]));
+}
+
+/**
+ * Sorts daily staffing coverage rows for operations review.
+ *
+ * @param coverageItems - Daily staffing coverage items
+ * @param statsByRequirementId - Aggregate statistics keyed by requirement id
+ * @returns Coverage rows with aggregate statistics attached
+ */
+function buildStaffingCoverageRows(
+	coverageItems: StaffingCoverageItem[],
+	statsByRequirementId: Map<string, StaffingCoverageStatsItem>,
+): StaffingCoverageDisplayRow[] {
+	return coverageItems
+		.map((item) => ({
+			...item,
+			stats: statsByRequirementId.get(item.requirementId) ?? null,
+		}))
+		.sort((left, right) => {
+			if (left.isComplete !== right.isComplete) {
+				return left.isComplete ? 1 : -1;
+			}
+
+			const locationCompare = (left.locationName ?? '').localeCompare(
+				right.locationName ?? '',
+				'es',
+			);
+			if (locationCompare !== 0) {
+				return locationCompare;
+			}
+
+			return (left.jobPositionName ?? '').localeCompare(right.jobPositionName ?? '', 'es');
+		});
+}
+
+/**
+ * Formats a percentage value for compact dashboard display.
+ *
+ * @param value - Raw percentage value
+ * @returns Rounded percentage label
+ */
+function formatCoveragePercent(value: number): string {
+	return `${Math.round(value)}%`;
+}
+
+/**
+ * Formats a date key for compact Spanish dashboard display.
+ *
+ * @param dateKey - Date key in YYYY-MM-DD format
+ * @returns Localized date label or the original key when invalid
+ */
+function formatCoverageDateKey(dateKey: string): string {
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+		return dateKey;
+	}
+
+	const date = new Date(`${dateKey}T00:00:00.000Z`);
+	if (Number.isNaN(date.getTime())) {
+		return dateKey;
+	}
+
+	return new Intl.DateTimeFormat('es-MX', {
+		timeZone: 'UTC',
+		day: '2-digit',
+		month: 'short',
+		year: 'numeric',
+	}).format(date);
 }
 
 /**
@@ -220,6 +309,184 @@ function formatHeroTime(now: Date, timeZone: string): string {
 }
 
 /**
+ * Renders the operational staffing coverage panel.
+ *
+ * @param props - Staffing coverage panel props
+ * @returns Staffing coverage panel element
+ */
+function StaffingCoveragePanel({
+	rows,
+	summary,
+	isLoading,
+	isError,
+}: {
+	rows: StaffingCoverageDisplayRow[];
+	summary: StaffingCoverageStatsSummary;
+	isLoading: boolean;
+	isError: boolean;
+}): React.ReactElement {
+	const t = useTranslations('Dashboard');
+
+	return (
+		<Card
+			className="overflow-hidden rounded-[1.25rem] border-[color:var(--border-subtle)] py-0"
+			data-testid="dashboard-staffing-coverage"
+		>
+			<CardHeader className="grid gap-3 border-b border-[color:var(--border-subtle)] px-5 py-4 min-[760px]:grid-cols-[minmax(0,1fr)_auto] min-[760px]:items-center">
+				<div className="space-y-1">
+					<p className="text-[0.65rem] font-semibold uppercase tracking-[0.35em] text-[color:var(--accent-primary)]">
+						{t('staffingCoverage.eyebrow')}
+					</p>
+					<CardTitle>{t('staffingCoverage.title')}</CardTitle>
+				</div>
+				<div className="grid grid-cols-3 gap-2 text-xs">
+					<div className="rounded-md border border-[color:var(--border-subtle)] px-3 py-2">
+						<p className="text-muted-foreground">
+							{t('staffingCoverage.summary.complete')}
+						</p>
+						<p className="text-lg font-semibold">{summary.completeToday}</p>
+					</div>
+					<div className="rounded-md border border-[color:var(--border-subtle)] px-3 py-2">
+						<p className="text-muted-foreground">
+							{t('staffingCoverage.summary.incomplete')}
+						</p>
+						<p className="text-lg font-semibold">{summary.incompleteToday}</p>
+					</div>
+					<div className="rounded-md border border-[color:var(--border-subtle)] px-3 py-2">
+						<p className="text-muted-foreground">
+							{t('staffingCoverage.summary.average30d')}
+						</p>
+						<p className="text-lg font-semibold">
+							{formatCoveragePercent(summary.averageCoveragePercent30d)}
+						</p>
+					</div>
+				</div>
+			</CardHeader>
+			<CardContent className="p-0">
+				{isLoading ? (
+					<div
+						className="space-y-2 p-5"
+						data-testid="staffing-coverage-loading"
+						role="status"
+						aria-live="polite"
+						aria-label={t('staffingCoverage.loading')}
+					>
+						<p className="text-sm text-muted-foreground">
+							{t('staffingCoverage.loading')}
+						</p>
+						<Skeleton className="h-9 w-full" />
+						<Skeleton className="h-9 w-full" />
+						<Skeleton className="h-9 w-full" />
+					</div>
+				) : isError ? (
+					<p className="p-5 text-sm text-destructive">{t('staffingCoverage.error')}</p>
+				) : rows.length === 0 ? (
+					<p className="p-5 text-sm text-muted-foreground">
+						{t('staffingCoverage.empty')}
+					</p>
+				) : (
+					<div className="overflow-x-auto">
+						<table className="w-full min-w-[760px] text-left text-sm">
+							<thead className="border-b bg-muted/35 text-xs uppercase text-muted-foreground">
+								<tr>
+									<th className="px-4 py-2 font-medium">
+										{t('staffingCoverage.table.location')}
+									</th>
+									<th className="px-4 py-2 font-medium">
+										{t('staffingCoverage.table.jobPosition')}
+									</th>
+									<th className="px-4 py-2 font-medium">
+										{t('staffingCoverage.table.arrivedMinimum')}
+									</th>
+									<th className="px-4 py-2 font-medium">
+										{t('staffingCoverage.table.missing')}
+									</th>
+									<th className="px-4 py-2 font-medium">
+										{t('staffingCoverage.table.coverage')}
+									</th>
+									<th className="px-4 py-2 font-medium">
+										{t('staffingCoverage.table.trend')}
+									</th>
+									<th className="px-4 py-2 font-medium">
+										{t('staffingCoverage.table.status')}
+									</th>
+								</tr>
+							</thead>
+							<tbody className="divide-y">
+								{rows.map((row) => (
+									<tr key={row.requirementId} className="align-middle">
+										<td className="px-4 py-2 font-medium">
+											{row.locationName ??
+												t('staffingCoverage.fallbackLocation')}
+										</td>
+										<td className="px-4 py-2">
+											{row.jobPositionName ??
+												t('staffingCoverage.fallbackJobPosition')}
+										</td>
+										<td className="px-4 py-2 tabular-nums">
+											{t('staffingCoverage.values.arrivedMinimum', {
+												arrived: row.arrivedCount,
+												minimum: row.minimumRequired,
+											})}
+										</td>
+										<td className="px-4 py-2">
+											{row.missingCount > 0
+												? t('staffingCoverage.values.missing', {
+														count: row.missingCount,
+													})
+												: t('staffingCoverage.values.noMissing')}
+										</td>
+										<td className="px-4 py-2 tabular-nums">
+											{formatCoveragePercent(row.coveragePercent)}
+										</td>
+										<td className="px-4 py-2 text-xs text-muted-foreground">
+											<div className="flex flex-wrap gap-2">
+												<span>
+													{t('staffingCoverage.values.streak', {
+														days:
+															row.stats
+																?.currentStreakIncompleteDays ?? 0,
+													})}
+												</span>
+												<span>
+													{row.stats?.lastIncompleteDateKey
+														? t(
+																'staffingCoverage.values.lastIncomplete',
+																{
+																	date: row.stats
+																		.lastIncompleteDateKey
+																		? formatCoverageDateKey(
+																				row.stats
+																					.lastIncompleteDateKey,
+																			)
+																		: '',
+																},
+															)
+														: t(
+																'staffingCoverage.values.noRecentIncomplete',
+															)}
+												</span>
+											</div>
+										</td>
+										<td className="px-4 py-2">
+											<Badge variant={row.isComplete ? 'success' : 'warning'}>
+												{row.isComplete
+													? t('staffingCoverage.status.complete')
+													: t('staffingCoverage.status.incomplete')}
+											</Badge>
+										</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+					</div>
+				)}
+			</CardContent>
+		</Card>
+	);
+}
+
+/**
  * Dashboard page client component using the Variant B editorial layout.
  *
  * @returns The redesigned dashboard page
@@ -345,10 +612,65 @@ export function DashboardPageClient(): React.ReactElement {
 		queryFn: () => fetchDashboardLocationCapacity({ organizationId: organizationId ?? null }),
 		enabled: Boolean(organizationId),
 	});
+	const {
+		data: staffingCoveragePayload,
+		isFetching: isStaffingCoverageFetching,
+		isError: isStaffingCoverageError,
+	} = useQuery({
+		queryKey: queryKeys.dashboard.staffingCoverage({
+			date: todayDateKey,
+			organizationId: organizationId ?? undefined,
+		}),
+		queryFn: () =>
+			fetchAttendanceStaffingCoverage({
+				date: todayDateKey,
+				organizationId: organizationId ?? null,
+			}),
+		enabled: Boolean(organizationId),
+	});
+	const {
+		data: staffingCoverageStatsPayload,
+		isFetching: isStaffingCoverageStatsFetching,
+		isError: isStaffingCoverageStatsError,
+	} = useQuery({
+		queryKey: queryKeys.dashboard.staffingCoverageStats({
+			asOfDate: todayDateKey,
+			days: 30,
+			organizationId: organizationId ?? undefined,
+		}),
+		queryFn: () =>
+			fetchAttendanceStaffingCoverageStats({
+				days: 30,
+				organizationId: organizationId ?? null,
+			}),
+		enabled: Boolean(organizationId),
+	});
 	const employeeCountByLocation = useMemo(
 		() => employeeCountByLocationData ?? new Map<string, number>(),
 		[employeeCountByLocationData],
 	);
+	const staffingStatsByRequirementId = useMemo(
+		() => buildStaffingStatsByRequirementId(staffingCoverageStatsPayload?.data ?? []),
+		[staffingCoverageStatsPayload?.data],
+	);
+	const staffingCoverageRows = useMemo(
+		() =>
+			buildStaffingCoverageRows(
+				staffingCoveragePayload?.data ?? [],
+				staffingStatsByRequirementId,
+			),
+		[staffingCoveragePayload?.data, staffingStatsByRequirementId],
+	);
+	const staffingCoverageSummary = staffingCoverageStatsPayload?.summary ?? {
+		requirementsEvaluated: 0,
+		completeToday: 0,
+		incompleteToday: 0,
+		averageCoveragePercent30d: 0,
+		days: 30,
+	};
+	const isStaffingCoveragePanelLoading =
+		isStaffingCoverageFetching || isStaffingCoverageStatsFetching;
+	const isStaffingCoveragePanelError = isStaffingCoverageError || isStaffingCoverageStatsError;
 
 	const presentByLocationId = useMemo(
 		() => buildPresentByLocationId(presentRecords),
@@ -577,6 +899,13 @@ export function DashboardPageClient(): React.ReactElement {
 					/>
 				</div>
 			</div>
+
+			<StaffingCoveragePanel
+				rows={staffingCoverageRows}
+				summary={staffingCoverageSummary}
+				isLoading={isStaffingCoveragePanelLoading}
+				isError={isStaffingCoveragePanelError}
+			/>
 
 			{!hasLocationSelection ? (
 				<div

@@ -159,6 +159,8 @@ export interface AttendanceStaffingCoverageQueryParams extends Record<string, un
  * Query parameters for staffing coverage statistics.
  */
 export interface AttendanceStaffingCoverageStatsQueryParams extends Record<string, unknown> {
+	/** Date key used to scope dashboard cache freshness */
+	asOfDate?: string;
 	/** Optional inclusive date-window length */
 	days?: number;
 	/** Optional organization filter */

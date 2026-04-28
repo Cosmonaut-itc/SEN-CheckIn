@@ -63,6 +63,42 @@ vi.mock('next-intl', () => ({
 				return `${values?.present ?? 0}`;
 			}
 
+			if (key === 'staffingCoverage.title') {
+				return 'Cobertura por puesto';
+			}
+
+			if (key === 'staffingCoverage.loading') {
+				return 'Cargando cobertura por puesto';
+			}
+
+			if (key === 'staffingCoverage.summary.complete') {
+				return 'Completos hoy';
+			}
+
+			if (key === 'staffingCoverage.summary.incomplete') {
+				return 'Incompletos hoy';
+			}
+
+			if (key === 'staffingCoverage.summary.average30d') {
+				return 'Promedio 30d';
+			}
+
+			if (key === 'staffingCoverage.values.arrivedMinimum') {
+				return `${values?.arrived ?? 0}/${values?.minimum ?? 0}`;
+			}
+
+			if (key === 'staffingCoverage.values.missing') {
+				return `Faltan ${values?.count ?? 0}`;
+			}
+
+			if (key === 'staffingCoverage.values.streak') {
+				return `Racha ${values?.days ?? 0}d`;
+			}
+
+			if (key === 'staffingCoverage.values.lastIncomplete') {
+				return `Último ${values?.date ?? ''}`;
+			}
+
 			return key;
 		}) as ((key: string, values?: Record<string, unknown>) => string) & {
 			rich: (
@@ -219,6 +255,86 @@ function createQueryResults(): Array<Record<string, unknown>> {
 			data: new Map<string, number>([['location-1', 3]]),
 			isFetching: false,
 		},
+		{
+			data: {
+				dateKey: '2026-04-21',
+				data: [
+					{
+						requirementId: 'requirement-1',
+						locationId: 'location-1',
+						locationName: 'Matriz',
+						jobPositionId: 'position-1',
+						jobPositionName: 'Cajero',
+						minimumRequired: 3,
+						scheduledCount: 4,
+						arrivedCount: 2,
+						missingCount: 1,
+						coveragePercent: 67,
+						isComplete: false,
+						employees: [],
+					},
+					{
+						requirementId: 'requirement-2',
+						locationId: 'location-1',
+						locationName: 'Matriz',
+						jobPositionId: 'position-2',
+						jobPositionName: 'Gerente',
+						minimumRequired: 1,
+						scheduledCount: 1,
+						arrivedCount: 1,
+						missingCount: 0,
+						coveragePercent: 100,
+						isComplete: true,
+						employees: [],
+					},
+				],
+			},
+			isFetching: false,
+		},
+		{
+			data: {
+				data: [
+					{
+						requirementId: 'requirement-1',
+						locationId: 'location-1',
+						locationName: 'Matriz',
+						jobPositionId: 'position-1',
+						jobPositionName: 'Cajero',
+						minimumRequired: 3,
+						daysEvaluated: 30,
+						completeDays: 24,
+						incompleteDays: 6,
+						averageCoveragePercent: 82,
+						worstCoveragePercent: 50,
+						currentStreakIncompleteDays: 2,
+						lastIncompleteDateKey: '2026-04-21',
+					},
+					{
+						requirementId: 'requirement-2',
+						locationId: 'location-1',
+						locationName: 'Matriz',
+						jobPositionId: 'position-2',
+						jobPositionName: 'Gerente',
+						minimumRequired: 1,
+						daysEvaluated: 30,
+						completeDays: 30,
+						incompleteDays: 0,
+						averageCoveragePercent: 100,
+						worstCoveragePercent: 100,
+						currentStreakIncompleteDays: 0,
+						lastIncompleteDateKey: null,
+					},
+				],
+				summary: {
+					requirementsEvaluated: 2,
+					completeToday: 1,
+					incompleteToday: 1,
+					averageCoveragePercent30d: 91,
+					days: 30,
+				},
+			},
+			isFetching: false,
+		},
 	];
 }
 
@@ -275,7 +391,9 @@ describe('DashboardPageClient', () => {
 			.mockReturnValueOnce(createQueryResults()[4])
 			.mockReturnValueOnce(createQueryResults()[5])
 			.mockReturnValueOnce(createQueryResults()[6])
-			.mockReturnValueOnce(createQueryResults()[7]);
+			.mockReturnValueOnce(createQueryResults()[7])
+			.mockReturnValueOnce(createQueryResults()[8])
+			.mockReturnValueOnce(createQueryResults()[9]);
 
 		render(<DashboardPageClient />);
 
@@ -303,7 +421,9 @@ describe('DashboardPageClient', () => {
 			.mockReturnValueOnce(createQueryResults()[4])
 			.mockReturnValueOnce(createQueryResults()[5])
 			.mockReturnValueOnce(createQueryResults()[6])
-			.mockReturnValueOnce(createQueryResults()[7]);
+			.mockReturnValueOnce(createQueryResults()[7])
+			.mockReturnValueOnce(createQueryResults()[8])
+			.mockReturnValueOnce(createQueryResults()[9]);
 
 		render(<DashboardPageClient />);
 
@@ -349,6 +469,25 @@ describe('DashboardPageClient', () => {
 				queryKey: queryKeys.dashboard.locationCapacity('org-1'),
 			}),
 		);
+		expect(useQueryMock).toHaveBeenNthCalledWith(
+			9,
+			expect.objectContaining({
+				queryKey: queryKeys.dashboard.staffingCoverage({
+					date: '2026-04-21',
+					organizationId: 'org-1',
+				}),
+			}),
+		);
+		expect(useQueryMock).toHaveBeenNthCalledWith(
+			10,
+			expect.objectContaining({
+				queryKey: queryKeys.dashboard.staffingCoverageStats({
+					asOfDate: '2026-04-21',
+					days: 30,
+					organizationId: 'org-1',
+				}),
+			}),
+		);
 	});
 
 	it('uses the organization timezone for dashboard day-scoped queries', () => {
@@ -361,7 +500,9 @@ describe('DashboardPageClient', () => {
 			.mockReturnValueOnce(createQueryResults()[4])
 			.mockReturnValueOnce(createQueryResults()[5])
 			.mockReturnValueOnce(createQueryResults()[6])
-			.mockReturnValueOnce(createQueryResults()[7]);
+			.mockReturnValueOnce(createQueryResults()[7])
+			.mockReturnValueOnce(createQueryResults()[8])
+			.mockReturnValueOnce(createQueryResults()[9]);
 
 		render(<DashboardPageClient />);
 
@@ -396,6 +537,25 @@ describe('DashboardPageClient', () => {
 				}),
 			}),
 		);
+		expect(useQueryMock).toHaveBeenNthCalledWith(
+			9,
+			expect.objectContaining({
+				queryKey: queryKeys.dashboard.staffingCoverage({
+					date: '2026-04-20',
+					organizationId: 'org-1',
+				}),
+			}),
+		);
+		expect(useQueryMock).toHaveBeenNthCalledWith(
+			10,
+			expect.objectContaining({
+				queryKey: queryKeys.dashboard.staffingCoverageStats({
+					asOfDate: '2026-04-20',
+					days: 30,
+					organizationId: 'org-1',
+				}),
+			}),
+		);
 	});
 
 	it('propagates loading states to child cards', () => {
@@ -410,7 +570,21 @@ describe('DashboardPageClient', () => {
 			.mockReturnValueOnce({ data: { data: [], date: '2026-04-21' }, isFetching: true })
 			.mockReturnValueOnce({ data: [], isFetching: true })
 			.mockReturnValueOnce({ data: { data: [], cachedAt: null }, isFetching: true })
-			.mockReturnValueOnce({ data: new Map<string, number>(), isFetching: true });
+			.mockReturnValueOnce({ data: new Map<string, number>(), isFetching: true })
+			.mockReturnValueOnce({ data: { dateKey: '2026-04-21', data: [] }, isFetching: true })
+			.mockReturnValueOnce({
+				data: {
+					data: [],
+					summary: {
+						requirementsEvaluated: 0,
+						completeToday: 0,
+						incompleteToday: 0,
+						averageCoveragePercent30d: 0,
+						days: 30,
+					},
+				},
+				isFetching: true,
+			});
 
 		render(<DashboardPageClient />);
 
@@ -423,6 +597,35 @@ describe('DashboardPageClient', () => {
 		const weatherCard = screen.getByText('weather.title').closest('[data-slot="card"]');
 		expect(weatherCard).not.toBeNull();
 		expect(weatherCard?.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0);
+		expect(screen.getByTestId('staffing-coverage-loading')).toBeInTheDocument();
+		expect(
+			screen.getByRole('status', { name: 'Cargando cobertura por puesto' }),
+		).toBeInTheDocument();
+	});
+
+	it('renders daily staffing coverage summary and requirement rows', () => {
+		const queryResults = createQueryResults();
+		mockQueryResults(queryResults);
+
+		render(<DashboardPageClient />);
+
+		const panel = screen.getByTestId('dashboard-staffing-coverage');
+
+		expect(panel).toHaveTextContent('Cobertura por puesto');
+		expect(panel).toHaveTextContent('Completos hoy');
+		expect(panel).toHaveTextContent('1');
+		expect(panel).toHaveTextContent('Incompletos hoy');
+		expect(panel).toHaveTextContent('Promedio 30d');
+		expect(panel).toHaveTextContent('91%');
+		expect(panel).toHaveTextContent('Matriz');
+		expect(panel).toHaveTextContent('Cajero');
+		expect(panel).toHaveTextContent('2/3');
+		expect(panel).toHaveTextContent('Faltan 1');
+		expect(panel).toHaveTextContent('67%');
+		expect(panel).toHaveTextContent('Racha 2d');
+		expect(panel).toHaveTextContent('Último 21 abr 2026');
+		expect(panel).toHaveTextContent('Gerente');
+		expect(panel).toHaveTextContent('1/1');
 	});
 
 	it('collapses the location rail on mobile and expands it on demand', () => {

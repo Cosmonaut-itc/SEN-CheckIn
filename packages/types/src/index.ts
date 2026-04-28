@@ -10,6 +10,11 @@
 // ============================================================================
 
 /**
+ * Settings PIN validation pattern shared across API and web clients.
+ */
+export const SETTINGS_PIN_REGEX = /^\d{4}$/;
+
+/**
  * Bounding box coordinates for a detected face.
  * Values are normalized ratios (0.0 to 1.0) relative to image dimensions.
  */

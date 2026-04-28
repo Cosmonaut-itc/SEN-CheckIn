@@ -944,6 +944,87 @@ describe('device routes (contract)', () => {
 		expect(deviceStatuses.some((record) => record.id === seed.deviceId)).toBe(false);
 	});
 
+	it('allows platform admins to manage per-device settings PIN overrides for organizations where they are not members', async () => {
+		await cleanupSettingsPinState();
+
+		const targetOrganizationId = randomUUID();
+		const targetDeviceId = randomUUID();
+		const suffix = targetOrganizationId.slice(0, 8);
+		await db.insert(organization).values({
+			id: targetOrganizationId,
+			name: `Organización PIN Dispositivo ${suffix}`,
+			slug: `organizacion-pin-dispositivo-${suffix}`,
+			logo: null,
+			metadata: null,
+		});
+		await db.insert(device).values({
+			id: targetDeviceId,
+			code: `PIN-DEVICE-${suffix}`,
+			name: 'Kiosco PIN dispositivo',
+			deviceType: 'KIOSK',
+			status: 'OFFLINE',
+			organizationId: targetOrganizationId,
+		});
+
+		const adminMemberships = await db
+			.select({ id: member.id })
+			.from(member)
+			.where(
+				sql`${member.userId} = ${adminSession.userId} AND ${member.organizationId} = ${targetOrganizationId}`,
+			);
+		expect(adminMemberships.length).toBe(0);
+
+		const configResponse = await requestJson(
+			'PUT',
+			'/devices/settings-pin-config',
+			adminSession.cookieHeader,
+			{
+				organizationId: targetOrganizationId,
+				mode: 'PER_DEVICE',
+				globalPin: '1357',
+			},
+		);
+		expect(configResponse.status).toBe(200);
+
+		const overrideResponse = await requestJson(
+			'PUT',
+			`/devices/${targetDeviceId}/settings-pin`,
+			adminSession.cookieHeader,
+			{ pin: '2468' },
+		);
+		expect(overrideResponse.status).toBe(200);
+		expect(requirePayloadData(overrideResponse.payload)).toMatchObject({
+			mode: 'PER_DEVICE',
+			source: 'DEVICE',
+			pinRequired: true,
+			globalPinConfigured: true,
+			deviceOverrideConfigured: true,
+		});
+
+		const statusResponse = await requestJson(
+			'GET',
+			`/devices/${targetDeviceId}/settings-pin-status`,
+			adminSession.cookieHeader,
+		);
+		expect(statusResponse.status).toBe(200);
+		expect(requirePayloadData(statusResponse.payload)).toMatchObject({
+			mode: 'PER_DEVICE',
+			source: 'DEVICE',
+			pinRequired: true,
+			globalPinConfigured: true,
+			deviceOverrideConfigured: true,
+		});
+
+		const verifyResponse = await requestJson(
+			'POST',
+			`/devices/${targetDeviceId}/settings-pin-verify`,
+			adminSession.cookieHeader,
+			{ pin: '2468' },
+		);
+		expect(verifyResponse.status).toBe(200);
+		expect(requirePayloadData(verifyResponse.payload).valid).toBe(true);
+	});
+
 	it('rejects foreign organizationId for non-platform org admins without writing the active organization', async () => {
 		await cleanupSettingsPinState();
 

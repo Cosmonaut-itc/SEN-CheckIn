@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { SETTINGS_PIN_REGEX } from '@sen-checkin/types';
 
 import { isValidIanaTimeZone } from '../utils/time-zone.js';
 
@@ -369,7 +370,7 @@ export const deviceSettingsPinModeEnum = z.enum(['GLOBAL', 'PER_DEVICE']);
  */
 export const settingsPinSchema = z
 	.string()
-	.regex(/^\d{4}$/, 'PIN must be exactly four numeric digits');
+	.regex(SETTINGS_PIN_REGEX, 'PIN must be exactly four numeric digits');
 
 /**
  * Schema for reading device settings PIN configuration.

@@ -2,6 +2,7 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { SETTINGS_PIN_REGEX } from '@sen-checkin/types';
 import { useAppForm } from '@/lib/forms';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -84,7 +85,6 @@ interface ScopedDevicePinSelection {
 }
 
 const NONE_LOCATION_VALUE = '__none__';
-const SETTINGS_PIN_PATTERN = /^\d{4}$/;
 
 /**
  * Status badge variant mapping.
@@ -112,7 +112,7 @@ const settingsPinStatusVariants: Record<
  * @returns Validation result key or null when valid
  */
 function validatePinPair(pin: string, confirmation: string): 'format' | 'mismatch' | null {
-	if (!SETTINGS_PIN_PATTERN.test(pin)) {
+	if (!SETTINGS_PIN_REGEX.test(pin)) {
 		return 'format';
 	}
 

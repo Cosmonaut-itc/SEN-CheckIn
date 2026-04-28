@@ -13,6 +13,8 @@
  */
 
 import { headers } from 'next/headers';
+import { SETTINGS_PIN_REGEX } from '@sen-checkin/types';
+
 import { createServerApiClient } from '@/lib/server-api';
 import type { DeviceSettingsPinMode, DeviceStatus } from '@/lib/client-functions';
 
@@ -84,8 +86,6 @@ export interface MutationResult<T = unknown> {
 	error?: string;
 }
 
-const SETTINGS_PIN_PATTERN = /^\d{4}$/;
-
 /**
  * Determines whether a value is a plain object.
  *
@@ -143,7 +143,7 @@ function validateSettingsPin(pin: string | null | undefined): string | null {
 		return null;
 	}
 
-	return SETTINGS_PIN_PATTERN.test(pin) ? null : 'PIN must be exactly four numeric digits';
+	return SETTINGS_PIN_REGEX.test(pin) ? null : 'PIN must be exactly four numeric digits';
 }
 
 /**

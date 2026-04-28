@@ -439,6 +439,7 @@ async function loadAccessibleDevice(args: {
 	id: string;
 	authType: 'session' | 'apiKey';
 	session: AuthSession | null;
+	user: AuthUser | null;
 	sessionOrganizationIds: string[];
 	apiKeyOrganizationIds: string[];
 }): Promise<
@@ -449,6 +450,10 @@ async function loadAccessibleDevice(args: {
 	const record = rows[0] ?? null;
 	if (!record) {
 		return { ok: false, status: 404, message: 'Device not found', code: 'DEVICE_NOT_FOUND' };
+	}
+
+	if (args.authType === 'session' && args.user?.role === 'admin') {
+		return { ok: true, record };
 	}
 
 	if (
@@ -812,6 +817,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 				id: params.id,
 				authType,
 				session,
+				user,
 				sessionOrganizationIds,
 				apiKeyOrganizationIds,
 			});
@@ -897,6 +903,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 		async ({
 			params,
 			authType,
+			user,
 			session,
 			sessionOrganizationIds,
 			apiKeyOrganizationIds,
@@ -906,6 +913,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 				id: params.id,
 				authType,
 				session,
+				user,
 				sessionOrganizationIds,
 				apiKeyOrganizationIds,
 			});
@@ -940,6 +948,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 			body,
 			authType,
 			apiKeyId,
+			user,
 			session,
 			sessionOrganizationIds,
 			apiKeyOrganizationIds,
@@ -949,6 +958,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 				id: params.id,
 				authType,
 				session,
+				user,
 				sessionOrganizationIds,
 				apiKeyOrganizationIds,
 			});

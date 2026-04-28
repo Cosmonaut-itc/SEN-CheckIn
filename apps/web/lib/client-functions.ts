@@ -43,11 +43,20 @@ import type {
 	PayrollEmployeeHolidayImpact as PayrollEmployeeHolidayImpactContract,
 	PayrollHolidayNotice as PayrollHolidayNoticeContract,
 	SatTipoIncapacidad,
+	DailyStaffingCoverage as SharedDailyStaffingCoverage,
+	StaffingCoverageEmployee as SharedStaffingCoverageEmployee,
+	StaffingCoverageItem as SharedStaffingCoverageItem,
+	StaffingCoverageStats as SharedStaffingCoverageStats,
+	StaffingCoverageStatsItem as SharedStaffingCoverageStatsItem,
+	StaffingCoverageStatsSummary as SharedStaffingCoverageStatsSummary,
+	StaffingRequirement as SharedStaffingRequirement,
 	TerminationDraft as TerminationDraftContract,
 } from '@sen-checkin/types';
 import type {
 	AttendancePresentQueryParams,
 	AttendanceQueryParams,
+	AttendanceStaffingCoverageQueryParams,
+	AttendanceStaffingCoverageStatsQueryParams,
 	CalendarQueryParams,
 	DisciplinaryKpisQueryParams,
 	EmployeeDeductionListQueryParams,
@@ -66,6 +75,7 @@ import type {
 	OrganizationAllQueryParams,
 	ScheduleExceptionQueryParams,
 	ScheduleTemplateQueryParams,
+	StaffingRequirementQueryParams,
 	VacationRequestQueryParams,
 	UsersQueryParams,
 } from '@/lib/query-keys';
@@ -191,6 +201,14 @@ export interface JobPosition {
 	createdAt: Date;
 	updatedAt: Date;
 }
+
+export type StaffingRequirement = SharedStaffingRequirement;
+export type StaffingCoverageEmployee = SharedStaffingCoverageEmployee;
+export type StaffingCoverageItem = SharedStaffingCoverageItem;
+export type DailyStaffingCoverage = SharedDailyStaffingCoverage;
+export type StaffingCoverageStatsItem = SharedStaffingCoverageStatsItem;
+export type StaffingCoverageStatsSummary = SharedStaffingCoverageStatsSummary;
+export type StaffingCoverageStats = SharedStaffingCoverageStats;
 
 /**
  * Attendance record interface.
@@ -2125,6 +2143,116 @@ export async function fetchJobPositionsList(
 }
 
 // ============================================================================
+// Staffing Requirement Functions
+// ============================================================================
+
+type StaffingRequirementApiPayload = Omit<StaffingRequirement, 'createdAt' | 'updatedAt'> & {
+	createdAt: string | Date;
+	updatedAt: string | Date;
+};
+
+type StaffingCoverageEmployeeApiPayload = Omit<StaffingCoverageEmployee, 'checkedInAt'> & {
+	checkedInAt: string | Date | null;
+};
+
+type StaffingCoverageItemApiPayload = Omit<StaffingCoverageItem, 'employees'> & {
+	employees: StaffingCoverageEmployeeApiPayload[];
+};
+
+/**
+ * Normalizes a staffing requirement payload into Date-backed fields.
+ *
+ * @param record - Raw staffing requirement payload from the API
+ * @returns Normalized staffing requirement record
+ */
+function normalizeStaffingRequirementRecord(
+	record: StaffingRequirementApiPayload,
+): StaffingRequirement {
+	return {
+		...record,
+		createdAt: normalizeRequiredDate(record.createdAt),
+		updatedAt: normalizeRequiredDate(record.updatedAt),
+	};
+}
+
+/**
+ * Normalizes a daily staffing coverage item payload.
+ *
+ * @param item - Raw staffing coverage item payload
+ * @returns Normalized staffing coverage item
+ */
+function normalizeStaffingCoverageItem(item: StaffingCoverageItemApiPayload): StaffingCoverageItem {
+	return {
+		...item,
+		employees: item.employees.map((employee) => ({
+			...employee,
+			checkedInAt: employee.checkedInAt ? normalizeRequiredDate(employee.checkedInAt) : null,
+		})),
+	};
+}
+
+/**
+ * Fetches a paginated list of staffing requirements from the API.
+ *
+ * @param params - Query parameters for organization scoping, filters, and pagination
+ * @returns A promise resolving to the paginated staffing requirements response
+ * @throws Error if the API request fails
+ */
+export async function fetchStaffingRequirementsList(
+	params?: StaffingRequirementQueryParams,
+): Promise<PaginatedResponse<StaffingRequirement>> {
+	if (params?.organizationId === null) {
+		return {
+			data: [],
+			pagination: {
+				total: 0,
+				limit: params?.limit ?? 100,
+				offset: params?.offset ?? 0,
+			},
+		};
+	}
+
+	const query: {
+		limit: number;
+		offset: number;
+		organizationId?: string;
+		locationId?: string;
+		jobPositionId?: string;
+	} = {
+		limit: params?.limit ?? 100,
+		offset: params?.offset ?? 0,
+	};
+
+	if (params?.organizationId) {
+		query.organizationId = params.organizationId;
+	}
+
+	if (params?.locationId) {
+		query.locationId = params.locationId;
+	}
+
+	if (params?.jobPositionId) {
+		query.jobPositionId = params.jobPositionId;
+	}
+
+	const response = await api['staffing-requirements'].get({ $query: query });
+
+	if (response.error) {
+		throw new Error('Failed to fetch staffing requirements');
+	}
+
+	const payload = getApiResponseData(response);
+	const requirements = ((payload?.data ?? []) as StaffingRequirementApiPayload[]).map(
+		normalizeStaffingRequirementRecord,
+	);
+
+	return {
+		data: requirements,
+		pagination: payload?.pagination ?? { total: 0, limit: 100, offset: 0 },
+	};
+}
+
+// ============================================================================
 // Attendance Functions
 // ============================================================================
 
@@ -2534,6 +2662,115 @@ export async function fetchAttendanceHourly(params?: {
 	return {
 		data: (payload?.data ?? []) as HourlyActivity[],
 		date: String(payload?.date ?? params?.date ?? ''),
+	};
+}
+
+/**
+ * Fetches daily staffing coverage rows.
+ *
+ * @param params - Staffing coverage date and organization filters
+ * @returns Daily staffing coverage rows
+ * @throws Error when the API call fails
+ */
+export async function fetchAttendanceStaffingCoverage(
+	params: AttendanceStaffingCoverageQueryParams,
+): Promise<DailyStaffingCoverage> {
+	if (params.organizationId === null) {
+		return {
+			dateKey: params.date,
+			data: [],
+		};
+	}
+
+	const query: {
+		date: string;
+		organizationId?: string;
+		locationId?: string;
+	} = {
+		date: params.date,
+	};
+
+	if (params.organizationId) {
+		query.organizationId = params.organizationId;
+	}
+
+	if (params.locationId) {
+		query.locationId = params.locationId;
+	}
+
+	const response = await api.attendance['staffing-coverage'].get({ $query: query });
+
+	if (response.error) {
+		throw new Error('Failed to fetch staffing coverage');
+	}
+
+	const payload = getApiResponseData(response);
+	const items = ((payload?.data ?? []) as StaffingCoverageItemApiPayload[]).map(
+		normalizeStaffingCoverageItem,
+	);
+
+	return {
+		dateKey: String(payload?.dateKey ?? params.date),
+		data: items,
+	};
+}
+
+/**
+ * Fetches staffing coverage statistics.
+ *
+ * @param params - Staffing coverage stats filters
+ * @returns Staffing coverage statistics
+ * @throws Error when the API call fails
+ */
+export async function fetchAttendanceStaffingCoverageStats(
+	params?: AttendanceStaffingCoverageStatsQueryParams,
+): Promise<StaffingCoverageStats> {
+	if (params?.organizationId === null) {
+		return {
+			data: [],
+			summary: {
+				requirementsEvaluated: 0,
+				completeToday: 0,
+				incompleteToday: 0,
+				averageCoveragePercent30d: 0,
+				days: params.days ?? 30,
+			},
+		};
+	}
+
+	const query: {
+		days: number;
+		organizationId?: string;
+		locationId?: string;
+	} = {
+		days: params?.days ?? 30,
+	};
+
+	if (params?.organizationId) {
+		query.organizationId = params.organizationId;
+	}
+
+	if (params?.locationId) {
+		query.locationId = params.locationId;
+	}
+
+	const response = await api.attendance['staffing-coverage'].stats.get({ $query: query });
+
+	if (response.error) {
+		throw new Error('Failed to fetch staffing coverage stats');
+	}
+
+	const payload = getApiResponseData(response);
+
+	return {
+		data: (payload?.data ?? []) as StaffingCoverageStatsItem[],
+		summary: payload?.summary ?? {
+			requirementsEvaluated: 0,
+			completeToday: 0,
+			incompleteToday: 0,
+			averageCoveragePercent30d: 0,
+			days: params?.days ?? 30,
+		},
 	};
 }
 

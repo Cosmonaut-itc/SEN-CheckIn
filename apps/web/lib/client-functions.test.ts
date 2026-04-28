@@ -7,6 +7,9 @@ const {
 	mockAttendancePresentGet,
 	mockAttendanceTimelineGet,
 	mockAttendanceHourlyGet,
+	mockAttendanceStaffingCoverageGet,
+	mockAttendanceStaffingCoverageStatsGet,
+	mockStaffingRequirementsGet,
 	mockDevicesStatusSummaryGet,
 	mockWeatherGet,
 } = vi.hoisted(() => ({
@@ -16,6 +19,9 @@ const {
 	mockAttendancePresentGet: vi.fn(),
 	mockAttendanceTimelineGet: vi.fn(),
 	mockAttendanceHourlyGet: vi.fn(),
+	mockAttendanceStaffingCoverageGet: vi.fn(),
+	mockAttendanceStaffingCoverageStatsGet: vi.fn(),
+	mockStaffingRequirementsGet: vi.fn(),
 	mockDevicesStatusSummaryGet: vi.fn(),
 	mockWeatherGet: vi.fn(),
 }));
@@ -59,7 +65,12 @@ vi.mock('@/lib/api', () => {
 				present: { get: mockAttendancePresentGet },
 				timeline: { get: mockAttendanceTimelineGet },
 				hourly: { get: mockAttendanceHourlyGet },
+				'staffing-coverage': {
+					get: mockAttendanceStaffingCoverageGet,
+					stats: { get: mockAttendanceStaffingCoverageStatsGet },
+				},
 			},
+			'staffing-requirements': { get: mockStaffingRequirementsGet },
 			devices: devicesResource,
 			weather: { get: mockWeatherGet },
 		},
@@ -72,19 +83,25 @@ vi.mock('@/lib/auth-client', () => ({
 
 import type {
 	AttendanceType,
+	DailyStaffingCoverage,
 	DeviceStatusRecord,
 	Employee,
+	StaffingCoverageStats,
+	StaffingRequirement,
 	TimelineEvent,
 	WeatherRecord,
 } from '@/lib/client-functions';
 import {
 	fetchAttendancePresent,
 	fetchAttendanceHourly,
+	fetchAttendanceStaffingCoverage,
+	fetchAttendanceStaffingCoverageStats,
 	fetchAttendanceTimeline,
 	fetchDashboardLocationCapacity,
 	fetchDeviceStatusSummary,
 	fetchEmployeeById,
 	fetchEmployeesList,
+	fetchStaffingRequirementsList,
 	fetchWeather,
 } from '@/lib/client-functions';
 
@@ -230,6 +247,113 @@ function createWeatherFixture(overrides: Partial<WeatherRecord> = {}): WeatherRe
 	};
 }
 
+/**
+ * Builds a staffing requirement payload fixture.
+ *
+ * @param overrides - Partial payload overrides
+ * @returns Staffing requirement payload fixture
+ */
+function createStaffingRequirementFixture(
+	overrides: Partial<StaffingRequirement> = {},
+): StaffingRequirement {
+	return {
+		id: 'requirement-1',
+		organizationId: 'org-1',
+		locationId: 'location-1',
+		jobPositionId: 'job-position-1',
+		minimumRequired: 3,
+		createdAt: new Date('2026-04-01T00:00:00.000Z'),
+		updatedAt: new Date('2026-04-02T00:00:00.000Z'),
+		...overrides,
+	};
+}
+
+/**
+ * Builds a daily staffing coverage fixture.
+ *
+ * @param overrides - Partial payload overrides
+ * @returns Daily staffing coverage fixture
+ */
+function createDailyStaffingCoverageFixture(
+	overrides: Partial<DailyStaffingCoverage> = {},
+): DailyStaffingCoverage {
+	return {
+		dateKey: '2026-04-20',
+		data: [
+			{
+				requirementId: 'requirement-1',
+				locationId: 'location-1',
+				locationName: 'Sucursal Centro',
+				jobPositionId: 'job-position-1',
+				jobPositionName: 'Guardia',
+				minimumRequired: 2,
+				scheduledCount: 2,
+				arrivedCount: 1,
+				missingCount: 1,
+				coveragePercent: 50,
+				isComplete: false,
+				employees: [
+					{
+						employeeId: 'employee-1',
+						employeeName: 'Ana Pérez',
+						employeeCode: 'EMP-001',
+						status: 'ARRIVED',
+						checkedInAt: new Date('2026-04-20T14:00:00.000Z'),
+						attendanceType: 'CHECK_IN',
+					},
+					{
+						employeeId: 'employee-2',
+						employeeName: 'Luis García',
+						employeeCode: 'EMP-002',
+						status: 'MISSING',
+						checkedInAt: null,
+						attendanceType: null,
+					},
+				],
+			},
+		],
+		...overrides,
+	};
+}
+
+/**
+ * Builds a staffing coverage stats fixture.
+ *
+ * @param overrides - Partial payload overrides
+ * @returns Staffing coverage stats fixture
+ */
+function createStaffingCoverageStatsFixture(
+	overrides: Partial<StaffingCoverageStats> = {},
+): StaffingCoverageStats {
+	return {
+		data: [
+			{
+				requirementId: 'requirement-1',
+				locationId: 'location-1',
+				locationName: 'Sucursal Centro',
+				jobPositionId: 'job-position-1',
+				jobPositionName: 'Guardia',
+				minimumRequired: 2,
+				daysEvaluated: 30,
+				completeDays: 20,
+				incompleteDays: 10,
+				averageCoveragePercent: 87.5,
+				worstCoveragePercent: 50,
+				currentStreakIncompleteDays: 1,
+				lastIncompleteDateKey: '2026-04-20',
+			},
+		],
+		summary: {
+			requirementsEvaluated: 1,
+			completeToday: 0,
+			incompleteToday: 1,
+			averageCoveragePercent30d: 87.5,
+			days: 30,
+		},
+		...overrides,
+	};
+}
+
 describe('employee client functions', () => {
 	beforeEach(() => {
 		mockEmployeesListGet.mockReset();
@@ -238,6 +362,9 @@ describe('employee client functions', () => {
 		mockAttendancePresentGet.mockReset();
 		mockAttendanceTimelineGet.mockReset();
 		mockAttendanceHourlyGet.mockReset();
+		mockAttendanceStaffingCoverageGet.mockReset();
+		mockAttendanceStaffingCoverageStatsGet.mockReset();
+		mockStaffingRequirementsGet.mockReset();
 		mockDevicesStatusSummaryGet.mockReset();
 		mockWeatherGet.mockReset();
 	});
@@ -279,6 +406,9 @@ describe('dashboard v2 client functions', () => {
 		mockEmployeesActiveCountsByLocationGet.mockReset();
 		mockAttendanceTimelineGet.mockReset();
 		mockAttendanceHourlyGet.mockReset();
+		mockAttendanceStaffingCoverageGet.mockReset();
+		mockAttendanceStaffingCoverageStatsGet.mockReset();
+		mockStaffingRequirementsGet.mockReset();
 		mockDevicesStatusSummaryGet.mockReset();
 		mockWeatherGet.mockReset();
 	});
@@ -616,6 +746,180 @@ describe('dashboard v2 client functions', () => {
 				date: '2026-04-21',
 			},
 		});
+	});
+
+	it('returns an empty staffing requirements page when organizationId is null', async () => {
+		const response = await fetchStaffingRequirementsList({
+			organizationId: null,
+			limit: 25,
+			offset: 5,
+		});
+
+		expect(response).toEqual({
+			data: [],
+			pagination: {
+				total: 0,
+				limit: 25,
+				offset: 5,
+			},
+		});
+		expect(mockStaffingRequirementsGet).not.toHaveBeenCalled();
+	});
+
+	it('fetches staffing requirements and normalizes serialized dates', async () => {
+		mockStaffingRequirementsGet.mockResolvedValue({
+			data: {
+				data: [
+					{
+						...createStaffingRequirementFixture(),
+						createdAt: '2026-04-01T00:00:00.000Z',
+						updatedAt: '2026-04-02T00:00:00.000Z',
+					},
+				],
+				pagination: { total: 1, limit: 20, offset: 0 },
+			},
+			error: null,
+			status: 200,
+		});
+
+		const response = await fetchStaffingRequirementsList({
+			organizationId: 'org-1',
+			locationId: 'location-1',
+			jobPositionId: 'job-position-1',
+			limit: 20,
+			offset: 0,
+		});
+
+		expect(mockStaffingRequirementsGet).toHaveBeenCalledWith({
+			$query: {
+				organizationId: 'org-1',
+				locationId: 'location-1',
+				jobPositionId: 'job-position-1',
+				limit: 20,
+				offset: 0,
+			},
+		});
+		expect(response.data[0]?.createdAt).toBeInstanceOf(Date);
+		expect(response.data[0]?.updatedAt).toBeInstanceOf(Date);
+		expect(response.data[0]?.createdAt.toISOString()).toBe('2026-04-01T00:00:00.000Z');
+		expect(response.pagination).toEqual({ total: 1, limit: 20, offset: 0 });
+	});
+
+	it('fetches staffing requirements without an explicit organizationId', async () => {
+		mockStaffingRequirementsGet.mockResolvedValue({
+			data: {
+				data: [],
+				pagination: { total: 0, limit: 100, offset: 0 },
+			},
+			error: null,
+			status: 200,
+		});
+
+		const response = await fetchStaffingRequirementsList();
+
+		expect(response).toEqual({
+			data: [],
+			pagination: { total: 0, limit: 100, offset: 0 },
+		});
+		expect(mockStaffingRequirementsGet).toHaveBeenCalledWith({
+			$query: {
+				limit: 100,
+				offset: 0,
+			},
+		});
+	});
+
+	it('returns empty staffing coverage when organizationId is null', async () => {
+		const response = await fetchAttendanceStaffingCoverage({
+			organizationId: null,
+			date: '2026-04-20',
+		});
+
+		expect(response).toEqual({
+			dateKey: '2026-04-20',
+			data: [],
+		});
+		expect(mockAttendanceStaffingCoverageGet).not.toHaveBeenCalled();
+	});
+
+	it('fetches daily staffing coverage and normalizes employee check-in timestamps', async () => {
+		const fixture = createDailyStaffingCoverageFixture();
+		mockAttendanceStaffingCoverageGet.mockResolvedValue({
+			data: {
+				dateKey: fixture.dateKey,
+				data: fixture.data.map((item) => ({
+					...item,
+					employees: item.employees.map((employee) => ({
+						...employee,
+						checkedInAt: employee.checkedInAt?.toISOString() ?? null,
+					})),
+				})),
+			},
+			error: null,
+			status: 200,
+		});
+
+		const response = await fetchAttendanceStaffingCoverage({
+			organizationId: 'org-1',
+			locationId: 'location-1',
+			date: '2026-04-20',
+		});
+
+		expect(mockAttendanceStaffingCoverageGet).toHaveBeenCalledWith({
+			$query: {
+				organizationId: 'org-1',
+				locationId: 'location-1',
+				date: '2026-04-20',
+			},
+		});
+		expect(response.data[0]?.employees[0]?.checkedInAt).toBeInstanceOf(Date);
+		expect(response.data[0]?.employees[0]?.checkedInAt?.toISOString()).toBe(
+			'2026-04-20T14:00:00.000Z',
+		);
+		expect(response.data[0]?.employees[1]?.checkedInAt).toBeNull();
+	});
+
+	it('returns empty staffing coverage stats when organizationId is null', async () => {
+		const response = await fetchAttendanceStaffingCoverageStats({
+			organizationId: null,
+			days: 14,
+		});
+
+		expect(response).toEqual({
+			data: [],
+			summary: {
+				requirementsEvaluated: 0,
+				completeToday: 0,
+				incompleteToday: 0,
+				averageCoveragePercent30d: 0,
+				days: 14,
+			},
+		});
+		expect(mockAttendanceStaffingCoverageStatsGet).not.toHaveBeenCalled();
+	});
+
+	it('fetches staffing coverage stats from the API', async () => {
+		const fixture = createStaffingCoverageStatsFixture();
+		mockAttendanceStaffingCoverageStatsGet.mockResolvedValue({
+			data: fixture,
+			error: null,
+			status: 200,
+		});
+
+		const response = await fetchAttendanceStaffingCoverageStats({
+			organizationId: 'org-1',
+			locationId: 'location-1',
+			days: 30,
+		});
+
+		expect(mockAttendanceStaffingCoverageStatsGet).toHaveBeenCalledWith({
+			$query: {
+				organizationId: 'org-1',
+				locationId: 'location-1',
+				days: 30,
+			},
+		});
+		expect(response).toEqual(fixture);
 	});
 
 	it('fetches device status summary from the API', async () => {

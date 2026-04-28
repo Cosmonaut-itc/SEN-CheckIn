@@ -319,6 +319,156 @@ export interface AttendanceRecord {
 }
 
 // ============================================================================
+// Staffing Coverage Types
+// ============================================================================
+
+/**
+ * Staffing requirement entity for minimum coverage by location and job position.
+ */
+export interface StaffingRequirement {
+	/** Unique identifier (UUID) */
+	id: string;
+	/** Owning organization ID reference */
+	organizationId: string;
+	/** Location ID reference */
+	locationId: string;
+	/** Job position ID reference */
+	jobPositionId: string;
+	/** Minimum number of employees required */
+	minimumRequired: number;
+	/** Record creation timestamp */
+	createdAt: Date;
+	/** Record last update timestamp */
+	updatedAt: Date;
+}
+
+/**
+ * Employee status values used by staffing coverage calculations.
+ */
+export type StaffingCoverageEmployeeStatus = 'ARRIVED' | 'MISSING';
+
+/**
+ * Attendance types that can satisfy staffing coverage.
+ */
+export type StaffingCoverageArrivalType = 'CHECK_IN' | 'WORK_OFFSITE';
+
+/**
+ * Employee-level staffing coverage result.
+ */
+export interface StaffingCoverageEmployee {
+	/** Employee identifier */
+	employeeId: string;
+	/** Employee display name */
+	employeeName: string;
+	/** Employee code */
+	employeeCode: string;
+	/** Coverage status for the evaluated date */
+	status: StaffingCoverageEmployeeStatus;
+	/** First qualifying arrival timestamp, or null when missing */
+	checkedInAt: Date | null;
+	/** Attendance type that satisfied coverage, or null when missing */
+	attendanceType: StaffingCoverageArrivalType | null;
+}
+
+/**
+ * Staffing coverage item for a configured location and job position.
+ */
+export interface StaffingCoverageItem {
+	/** Staffing requirement identifier */
+	requirementId: string;
+	/** Location identifier */
+	locationId: string;
+	/** Location display name */
+	locationName: string | null;
+	/** Job position identifier */
+	jobPositionId: string;
+	/** Job position display name */
+	jobPositionName: string | null;
+	/** Minimum required employees */
+	minimumRequired: number;
+	/** Employees scheduled for the evaluated date */
+	scheduledCount: number;
+	/** Scheduled employees who arrived */
+	arrivedCount: number;
+	/** Scheduled employees still missing */
+	missingCount: number;
+	/** Coverage percentage capped at 100 */
+	coveragePercent: number;
+	/** Whether arrived employees satisfy the minimum requirement */
+	isComplete: boolean;
+	/** Employee-level coverage details */
+	employees: StaffingCoverageEmployee[];
+}
+
+/**
+ * Daily staffing coverage response.
+ */
+export interface DailyStaffingCoverage {
+	/** Evaluated date key (YYYY-MM-DD) */
+	dateKey: string;
+	/** Coverage rows for configured requirements */
+	data: StaffingCoverageItem[];
+}
+
+/**
+ * Staffing coverage aggregate item over a date window.
+ */
+export interface StaffingCoverageStatsItem {
+	/** Staffing requirement identifier */
+	requirementId: string;
+	/** Location identifier */
+	locationId: string;
+	/** Location display name */
+	locationName: string | null;
+	/** Job position identifier */
+	jobPositionId: string;
+	/** Job position display name */
+	jobPositionName: string | null;
+	/** Minimum required employees */
+	minimumRequired: number;
+	/** Number of days included in the calculation */
+	daysEvaluated: number;
+	/** Number of days that satisfied minimum coverage */
+	completeDays: number;
+	/** Number of days that did not satisfy minimum coverage */
+	incompleteDays: number;
+	/** Average coverage percentage over the evaluated window */
+	averageCoveragePercent: number;
+	/** Worst coverage percentage over the evaluated window */
+	worstCoveragePercent: number;
+	/** Current consecutive incomplete-day count */
+	currentStreakIncompleteDays: number;
+	/** Most recent incomplete date key, if any */
+	lastIncompleteDateKey: string | null;
+}
+
+/**
+ * Staffing coverage summary over a date window.
+ */
+export interface StaffingCoverageStatsSummary {
+	/** Number of requirements included in the calculation */
+	requirementsEvaluated: number;
+	/** Requirements complete on the current evaluated day */
+	completeToday: number;
+	/** Requirements incomplete on the current evaluated day */
+	incompleteToday: number;
+	/** Average coverage percentage for the requested window */
+	averageCoveragePercent30d: number;
+	/** Requested window length in days */
+	days: number;
+}
+
+/**
+ * Staffing coverage stats response.
+ */
+export interface StaffingCoverageStats {
+	/** Aggregate rows for configured requirements */
+	data: StaffingCoverageStatsItem[];
+	/** Overall staffing coverage summary */
+	summary: StaffingCoverageStatsSummary;
+}
+
+// ============================================================================
 // Device Types
 // ============================================================================
 

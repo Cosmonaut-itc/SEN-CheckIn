@@ -184,6 +184,38 @@ export const jobPositionQuerySchema = paginationSchema.extend({
 });
 
 // ============================================================================
+// Staffing Requirement Schemas
+// ============================================================================
+
+/**
+ * Schema for creating a new staffing requirement.
+ */
+export const createStaffingRequirementSchema = z.object({
+	organizationId: z.string().optional(),
+	locationId: z.string().uuid('Invalid location ID'),
+	jobPositionId: z.string().uuid('Invalid job position ID'),
+	minimumRequired: z.coerce.number().int().min(0),
+});
+
+/**
+ * Schema for updating a staffing requirement.
+ */
+export const updateStaffingRequirementSchema = z.object({
+	locationId: z.string().uuid().optional(),
+	jobPositionId: z.string().uuid().optional(),
+	minimumRequired: z.coerce.number().int().min(0).optional(),
+});
+
+/**
+ * Schema for staffing requirement query filters.
+ */
+export const staffingRequirementQuerySchema = paginationSchema.extend({
+	organizationId: z.string().optional(),
+	locationId: z.string().uuid().optional(),
+	jobPositionId: z.string().uuid().optional(),
+});
+
+// ============================================================================
 // Employee Schemas
 // ============================================================================
 

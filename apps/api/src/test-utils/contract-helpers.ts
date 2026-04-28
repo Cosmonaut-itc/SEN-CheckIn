@@ -262,6 +262,7 @@ async function assertBootstrappedContractState(): Promise<void> {
 		employee,
 		device,
 		scheduleTemplate,
+		staffingRequirement,
 		user,
 		member,
 	} = schema;
@@ -272,6 +273,8 @@ async function assertBootstrappedContractState(): Promise<void> {
 	if (!organizationRow) {
 		throw new Error('Seed organization "sen-checkin" was not found.');
 	}
+
+	await db.select({ id: staffingRequirement.id }).from(staffingRequirement).limit(1);
 
 	const [locationRow, jobPositionRow, employeeRow, deviceRow, templateRow, adminUser, memberUser] =
 		await Promise.all([

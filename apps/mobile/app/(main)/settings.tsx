@@ -21,7 +21,10 @@ import { useAppForm } from '@/lib/forms';
 import { i18n } from '@/lib/i18n';
 import { clearPendingAttendanceQueue } from '@/lib/offline-attendance';
 import { queryKeys } from '@/lib/query-keys';
-import { hasSettingsAccessGrant } from '@/lib/settings-access-guard';
+import {
+	getSettingsAccessGrantExpiresAt,
+	hasSettingsAccessGrant,
+} from '@/lib/settings-access-guard';
 import { BODY_TEXT_CLASS_NAME } from '@/lib/typography';
 import { useAuthContext } from '@/providers/auth-provider';
 
@@ -139,6 +142,22 @@ export default function SettingsScreen(): JSX.Element {
 			router.replace(SCANNER_ROUTE);
 		}
 	}, [hasSettingsAccess, router]);
+
+	useEffect(() => {
+		const expiresAt = getSettingsAccessGrantExpiresAt(settings?.deviceId);
+		if (!expiresAt) {
+			return undefined;
+		}
+
+		const redirectDelayMs = Math.max(0, expiresAt - Date.now());
+		const timeout = setTimeout(() => {
+			router.replace(SCANNER_ROUTE);
+		}, redirectDelayMs);
+
+		return () => {
+			clearTimeout(timeout);
+		};
+	}, [router, settings?.deviceId]);
 
 	/**
 	 * Navigate back to the previous screen when history exists.

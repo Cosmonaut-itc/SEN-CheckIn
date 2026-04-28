@@ -122,30 +122,46 @@ jest.mock('heroui-native', () => {
 
 	const InputOTP = function MockInputOTP({
 		accessibilityLabel,
+		children,
 		value,
 		onChange,
 		maxLength,
 		textInputProps,
 	}: {
 		accessibilityLabel?: string;
+		children?: React.ReactNode;
 		value?: string;
 		onChange?: (value: string) => void;
 		maxLength?: number;
 		textInputProps?: {
 			accessibilityLabel?: string;
+			secureTextEntry?: boolean;
 		};
 	}) {
 		return (
-			<TextInput
-				accessibilityLabel={accessibilityLabel ?? textInputProps?.accessibilityLabel}
-				value={value}
-				onChangeText={onChange}
-				maxLength={maxLength}
-			/>
+			<View>
+				<TextInput
+					accessibilityLabel={accessibilityLabel ?? textInputProps?.accessibilityLabel}
+					value={value}
+					onChangeText={onChange}
+					maxLength={maxLength}
+					secureTextEntry={textInputProps?.secureTextEntry}
+				/>
+				{children}
+			</View>
 		);
 	};
-	InputOTP.Slot = function MockInputOTPSlot() {
-		return <View />;
+	InputOTP.Slot = function MockInputOTPSlot({ children }: { children?: React.ReactNode }) {
+		return <View>{children}</View>;
+	};
+	InputOTP.Group = function MockInputOTPGroup({ children }: { children?: React.ReactNode }) {
+		return <View>{children}</View>;
+	};
+	InputOTP.SlotPlaceholder = function MockInputOTPSlotPlaceholder() {
+		return <Text>-</Text>;
+	};
+	InputOTP.SlotCaret = function MockInputOTPSlotCaret() {
+		return null;
 	};
 
 	return {
@@ -345,6 +361,26 @@ describe('ScannerScreen settings PIN gate', () => {
 		expect(mockPush).not.toHaveBeenCalledWith('/(main)/settings');
 	});
 
+	it('masks the entered settings PIN digits in the gate', async () => {
+		mockFetchDeviceSettingsPinStatus.mockResolvedValue({
+			deviceId: 'device-1',
+			mode: 'GLOBAL',
+			pinRequired: true,
+			source: 'GLOBAL',
+			globalPinConfigured: true,
+			deviceOverrideConfigured: false,
+		});
+
+		render(<ScannerScreen />);
+
+		fireEvent.press(screen.getByLabelText('Abrir configuración del dispositivo'));
+		fireEvent.changeText(await screen.findByLabelText('PIN de configuración'), '1234');
+
+		expect(screen.getAllByText('*', { includeHiddenElements: true })).toHaveLength(4);
+		expect(screen.getByLabelText('PIN de configuración')).toHaveProp('secureTextEntry', true);
+		expect(screen.queryByText('1234')).not.toBeOnTheScreen();
+	});
+
 	it('keeps the user on scanner and shows an error when the PIN is incorrect', async () => {
 		mockFetchDeviceSettingsPinStatus.mockResolvedValue({
 			deviceId: 'device-1',
@@ -396,6 +432,7 @@ describe('ScannerScreen settings PIN gate', () => {
 
 		await waitFor(() => {
 			expect(mockPush).not.toHaveBeenCalledWith('/(main)/settings');
+			expect(screen.getByLabelText('PIN de configuración')).toHaveProp('value', '');
 			expect(mockToastShow).toHaveBeenCalledWith(
 				expect.objectContaining({
 					variant: 'danger',

@@ -76,6 +76,7 @@ const MAX_FACE_GUIDE_SIZE = 400;
 const ATTENDANCE_TYPE_ORDER: AttendanceType[] = ['CHECK_IN', 'CHECK_OUT_AUTHORIZED', 'CHECK_OUT'];
 const DEVICE_SETUP_ROUTE = '/(auth)/device-setup' as Href;
 const SETTINGS_ROUTE = '/(main)/settings' as Href;
+const SETTINGS_PIN_SLOT_INDICES = [0, 1, 2, 3] as const;
 const convertResolvedThemeColorToRgb = converter('rgb');
 
 /**
@@ -566,6 +567,7 @@ export default function ScannerScreen(): JSX.Element {
 		} catch (error) {
 			console.error('[scanner] Failed to verify settings PIN', error);
 			const isRateLimited = isDeviceSettingsPinError(error) && error.code === 'RATE_LIMITED';
+			setSettingsPin('');
 			showSettingsPinErrorToast(
 				isRateLimited
 					? 'Scanner.settingsPin.errors.lockoutTitle'
@@ -1336,13 +1338,26 @@ export default function ScannerScreen(): JSX.Element {
 											accessibilityLabel: i18n.t(
 												'Scanner.settingsPin.inputLabel',
 											),
+											secureTextEntry: true,
 										}}
 									>
 										<InputOTP.Group className="flex-row gap-3">
-											<InputOTP.Slot index={0} />
-											<InputOTP.Slot index={1} />
-											<InputOTP.Slot index={2} />
-											<InputOTP.Slot index={3} />
+											{SETTINGS_PIN_SLOT_INDICES.map((slotIndex) => (
+												<InputOTP.Slot key={slotIndex} index={slotIndex}>
+													{settingsPin.length > slotIndex ? (
+														<Text
+															className="text-xl font-semibold text-foreground"
+															accessibilityElementsHidden
+															importantForAccessibility="no-hide-descendants"
+														>
+															*
+														</Text>
+													) : (
+														<InputOTP.SlotPlaceholder>-</InputOTP.SlotPlaceholder>
+													)}
+													<InputOTP.SlotCaret />
+												</InputOTP.Slot>
+											))}
 										</InputOTP.Group>
 									</InputOTP>
 									{settingsPinError ? (

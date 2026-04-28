@@ -37,6 +37,32 @@ export function hasSettingsAccessGrant(deviceId: string | null | undefined): boo
 }
 
 /**
+ * Gets the expiration timestamp for a valid in-memory settings grant.
+ *
+ * @param deviceId - Device identifier to inspect
+ * @returns Expiration timestamp in milliseconds, or null when no valid grant exists
+ */
+export function getSettingsAccessGrantExpiresAt(
+	deviceId: string | null | undefined,
+): number | null {
+	if (!deviceId) {
+		return null;
+	}
+
+	const expiresAt = settingsAccessGrantExpiresAtByDeviceId.get(deviceId);
+	if (!expiresAt) {
+		return null;
+	}
+
+	if (expiresAt <= Date.now()) {
+		settingsAccessGrantExpiresAtByDeviceId.delete(deviceId);
+		return null;
+	}
+
+	return expiresAt;
+}
+
+/**
  * Clears all in-memory settings access grants.
  *
  * @returns No return value

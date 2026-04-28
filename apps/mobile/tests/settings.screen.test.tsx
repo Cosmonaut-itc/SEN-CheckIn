@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import React from 'react';
 
 import SettingsScreen from '@/app/(main)/settings';
@@ -16,6 +16,7 @@ const mockClearSettings = jest.fn();
 const mockRouterReplace = jest.fn();
 const mockRequestReauth = jest.fn();
 const mockHasSettingsAccessGrant = jest.fn();
+const mockGetSettingsAccessGrantExpiresAt = jest.fn();
 let capturedFormConfig: {
 	onSubmit: (input: {
 		value: {
@@ -257,6 +258,8 @@ jest.mock('@/lib/query-keys', () => ({
 jest.mock(
 	'@/lib/settings-access-guard',
 	() => ({
+		getSettingsAccessGrantExpiresAt: (...args: unknown[]) =>
+			mockGetSettingsAccessGrantExpiresAt(...args),
 		hasSettingsAccessGrant: (...args: unknown[]) => mockHasSettingsAccessGrant(...args),
 	}),
 	{ virtual: true },
@@ -287,6 +290,7 @@ describe('SettingsScreen organization gating', () => {
 		mockRouterReplace.mockReset();
 		mockRequestReauth.mockReset();
 		mockHasSettingsAccessGrant.mockReset();
+		mockGetSettingsAccessGrantExpiresAt.mockReset();
 		capturedFormConfig = null;
 
 		mockUseQuery.mockReturnValue({
@@ -312,10 +316,12 @@ describe('SettingsScreen organization gating', () => {
 			clearSettings: mockClearSettings,
 		});
 		mockHasSettingsAccessGrant.mockReturnValue(true);
+		mockGetSettingsAccessGrantExpiresAt.mockReturnValue(Date.now() + 300000);
 	});
 
 	afterEach(() => {
 		jest.restoreAllMocks();
+		jest.useRealTimers();
 	});
 
 	it('disables the location select when there is no active organization', () => {
@@ -338,6 +344,22 @@ describe('SettingsScreen organization gating', () => {
 			expect(mockRouterReplace).toHaveBeenCalledWith('/(main)/scanner');
 		});
 		expect(screen.getByText('Settings.accessBlocked.title')).toBeOnTheScreen();
+	});
+
+	it('redirects back to scanner when the temporary settings grant expires while mounted', async () => {
+		const now = 1710000000000;
+		jest.useFakeTimers({ now });
+		mockGetSettingsAccessGrantExpiresAt.mockReturnValue(now + 1000);
+
+		render(<SettingsScreen />);
+
+		expect(mockRouterReplace).not.toHaveBeenCalledWith('/(main)/scanner');
+
+		await act(async () => {
+			jest.advanceTimersByTime(1000);
+		});
+
+		expect(mockRouterReplace).toHaveBeenCalledWith('/(main)/scanner');
 	});
 
 	it('loads locations when session organization is missing but persisted device settings retain the organization context', async () => {

@@ -19,6 +19,16 @@ export {
 	type UpdateEmployeeInput,
 } from './employees';
 
+// Export fiscal profile actions and types
+export {
+	getEmployeeFiscalProfileAction,
+	getOrganizationFiscalProfileAction,
+	getPayrollFiscalPreflightAction,
+	saveEmployeeFiscalProfileAction,
+	saveOrganizationFiscalProfileAction,
+	type FiscalProfileActionResult,
+} from './fiscal-profiles';
+
 // Export device actions and types (except MutationResult)
 export {
 	createDevice,

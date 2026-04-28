@@ -293,11 +293,13 @@ export const apikeyRelations = relations(apikey, ({ one }) => ({
 	}),
 }));
 
-export const organizationRelations = relations(organization, ({ many }) => ({
+export const organizationRelations = relations(organization, ({ one, many }) => ({
 	members: many(member),
 	invitations: many(invitation),
+	fiscalProfile: one(organizationFiscalProfile),
 	overtimeAuthorizations: many(overtimeAuthorization),
 	employeeDeductions: many(employeeDeduction),
+	payrollConceptSatMappings: many(payrollConceptSatMapping),
 	terminationSettlements: many(employeeTerminationSettlement),
 	documentWorkflowConfigs: many(organizationDocumentWorkflowConfig),
 	documentRequirements: many(organizationDocumentRequirement),
@@ -747,6 +749,57 @@ export const documentRequirementActivationStage = pgEnum('document_requirement_a
  */
 export const tourProgressStatus = pgEnum('tour_progress_status', ['completed', 'skipped']);
 
+/**
+ * Enum for organization payroll CFDI stamping modes.
+ */
+export const payrollStampingMode = pgEnum('payroll_stamping_mode', [
+	'PER_RUN',
+	'MONTHLY_CONSOLIDATED_DISABLED',
+]);
+
+/**
+ * Enum for SAT fiscal catalog names supported by Phase 1 master data.
+ */
+export const fiscalCatalogName = pgEnum('fiscal_catalog_name', [
+	'c_RegimenFiscal',
+	'c_UsoCFDI',
+	'c_CodigoPostal',
+	'nomina_c_TipoContrato',
+	'nomina_c_TipoJornada',
+	'nomina_c_TipoRegimen',
+	'nomina_c_RiesgoPuesto',
+	'nomina_c_PeriodicidadPago',
+	'nomina_c_TipoPercepcion',
+	'nomina_c_TipoDeduccion',
+	'nomina_c_TipoOtroPago',
+	'nomina_c_ClaveEntFed',
+	'nomina_c_Banco',
+]);
+
+/**
+ * Enum for nullable employee unionization values expected by SAT payroll data.
+ */
+export const employeeUnionizedValue = pgEnum('employee_unionized_value', ['Sí', 'No']);
+
+/**
+ * Enum for payroll CFDI concept nodes.
+ */
+export const payrollCfdiNode = pgEnum('payroll_cfdi_node', [
+	'PERCEPTION',
+	'DEDUCTION',
+	'OTHER_PAYMENT',
+]);
+
+/**
+ * Enum for payroll concept taxable strategies.
+ */
+export const payrollTaxableStrategy = pgEnum('payroll_taxable_strategy', [
+	'FULLY_TAXED',
+	'FULLY_EXEMPT',
+	'SPLIT_BY_CALCULATION',
+	'NOT_APPLICABLE',
+]);
+
 // ============================================================================
 // Domain Tables
 // ============================================================================
@@ -1038,6 +1091,164 @@ export const employeeTerminationSettlement = pgTable(
 	(table) => [
 		index('employee_termination_settlement_employee_idx').on(table.employeeId),
 		index('employee_termination_settlement_org_idx').on(table.organizationId),
+	],
+);
+
+/**
+ * Organization-level fiscal profile required for payroll CFDI preparation.
+ */
+export const organizationFiscalProfile = pgTable(
+	'organization_fiscal_profile',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organization.id, { onDelete: 'cascade' }),
+		legalName: text('legal_name').notNull(),
+		rfc: text('rfc').notNull(),
+		fiscalRegimeCode: text('fiscal_regime_code').notNull(),
+		expeditionPostalCode: text('expedition_postal_code').notNull(),
+		employerRegistrationNumber: text('employer_registration_number'),
+		defaultFederalEntityCode: text('default_federal_entity_code'),
+		payrollCfdiSeries: text('payroll_cfdi_series'),
+		payrollStampingMode: payrollStampingMode('payroll_stamping_mode')
+			.default('PER_RUN')
+			.notNull(),
+		csdCertificateSerial: text('csd_certificate_serial'),
+		csdCertificateValidFrom: text('csd_certificate_valid_from'),
+		csdCertificateValidTo: text('csd_certificate_valid_to'),
+		csdSecretRef: text('csd_secret_ref'),
+		pacProvider: text('pac_provider'),
+		pacCredentialsSecretRef: text('pac_credentials_secret_ref'),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		uniqueIndex('organization_fiscal_profile_organization_uniq').on(table.organizationId),
+	],
+);
+
+/**
+ * Employee-level fiscal profile required for SAT payroll CFDI recipient data.
+ */
+export const employeeFiscalProfile = pgTable(
+	'employee_fiscal_profile',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		employeeId: text('employee_id')
+			.notNull()
+			.references(() => employee.id, { onDelete: 'cascade' }),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organization.id, { onDelete: 'cascade' }),
+		satName: text('sat_name').notNull(),
+		rfc: text('rfc').notNull(),
+		curp: text('curp').notNull(),
+		fiscalPostalCode: text('fiscal_postal_code').notNull(),
+		fiscalRegimeCode: text('fiscal_regime_code').default('605').notNull(),
+		cfdiUseCode: text('cfdi_use_code').default('CN01').notNull(),
+		socialSecurityNumber: text('social_security_number'),
+		employmentStartDateKey: text('employment_start_date_key').notNull(),
+		contractTypeCode: text('contract_type_code').notNull(),
+		unionized: employeeUnionizedValue('unionized'),
+		workdayTypeCode: text('workday_type_code').notNull(),
+		payrollRegimeTypeCode: text('payroll_regime_type_code').notNull(),
+		employeeNumber: text('employee_number').notNull(),
+		department: text('department'),
+		position: text('position'),
+		riskPositionCode: text('risk_position_code'),
+		paymentFrequencyCode: text('payment_frequency_code').notNull(),
+		bankAccount: text('bank_account'),
+		salaryBaseContribution: text('salary_base_contribution'),
+		integratedDailySalary: text('integrated_daily_salary'),
+		federalEntityCode: text('federal_entity_code'),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		uniqueIndex('employee_fiscal_profile_employee_uniq').on(table.employeeId),
+		uniqueIndex('employee_fiscal_profile_org_employee_number_uniq')
+			.on(table.organizationId, table.employeeNumber)
+			.where(sql`${table.employeeNumber} <> ''`),
+		index('employee_fiscal_profile_org_idx').on(table.organizationId),
+	],
+);
+
+/**
+ * SAT fiscal catalog entry loaded from versioned SAT catalog sources.
+ */
+export const satFiscalCatalogEntry = pgTable(
+	'sat_fiscal_catalog_entry',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		catalogName: fiscalCatalogName('catalog_name').notNull(),
+		code: text('code').notNull(),
+		description: text('description').notNull(),
+		validFrom: text('valid_from'),
+		validTo: text('valid_to'),
+		sourceVersion: text('source_version').notNull(),
+		isActive: boolean('is_active').default(true).notNull(),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		uniqueIndex('sat_fiscal_catalog_entry_catalog_code_version_uniq').on(
+			table.catalogName,
+			table.code,
+			table.sourceVersion,
+		),
+		index('sat_fiscal_catalog_entry_catalog_code_idx').on(table.catalogName, table.code),
+	],
+);
+
+/**
+ * Mapping from internal payroll concept types to supported SAT payroll concepts.
+ */
+export const payrollConceptSatMapping = pgTable(
+	'payroll_concept_sat_mapping',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		organizationId: text('organization_id').references(() => organization.id, {
+			onDelete: 'cascade',
+		}),
+		internalConceptType: text('internal_concept_type').notNull(),
+		cfdiNode: payrollCfdiNode('cfdi_node').notNull(),
+		satTypeCode: text('sat_type_code').notNull(),
+		employerCode: text('employer_code').notNull(),
+		conceptLabel: text('concept_label').notNull(),
+		taxableStrategy: payrollTaxableStrategy('taxable_strategy').notNull(),
+		isSupportedForStamping: boolean('is_supported_for_stamping').default(true).notNull(),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		uniqueIndex('payroll_concept_sat_mapping_global_type_node_uniq')
+			.on(table.internalConceptType, table.cfdiNode)
+			.where(sql`${table.organizationId} is null`),
+		uniqueIndex('payroll_concept_sat_mapping_org_type_node_uniq')
+			.on(table.organizationId, table.internalConceptType, table.cfdiNode)
+			.where(sql`${table.organizationId} is not null`),
+		index('payroll_concept_sat_mapping_internal_type_idx').on(table.internalConceptType),
 	],
 );
 
@@ -2100,6 +2311,7 @@ export const employeeRelations = relations(employee, ({ one, many }) => ({
 		fields: [employee.userId],
 		references: [user.id],
 	}),
+	fiscalProfile: one(employeeFiscalProfile),
 	scheduleEntries: many(employeeSchedule),
 	scheduleExceptions: many(scheduleException),
 	incapacities: many(employeeIncapacity),
@@ -2115,6 +2327,34 @@ export const employeeRelations = relations(employee, ({ one, many }) => ({
 	terminationDrafts: many(employeeTerminationDraft),
 	overtimeAuthorizations: many(overtimeAuthorization),
 	employeeDeductions: many(employeeDeduction),
+}));
+
+export const organizationFiscalProfileRelations = relations(
+	organizationFiscalProfile,
+	({ one }) => ({
+		organization: one(organization, {
+			fields: [organizationFiscalProfile.organizationId],
+			references: [organization.id],
+		}),
+	}),
+);
+
+export const employeeFiscalProfileRelations = relations(employeeFiscalProfile, ({ one }) => ({
+	employee: one(employee, {
+		fields: [employeeFiscalProfile.employeeId],
+		references: [employee.id],
+	}),
+	organization: one(organization, {
+		fields: [employeeFiscalProfile.organizationId],
+		references: [organization.id],
+	}),
+}));
+
+export const payrollConceptSatMappingRelations = relations(payrollConceptSatMapping, ({ one }) => ({
+	organization: one(organization, {
+		fields: [payrollConceptSatMapping.organizationId],
+		references: [organization.id],
+	}),
 }));
 
 export const employeeAuditEventRelations = relations(employeeAuditEvent, ({ one }) => ({

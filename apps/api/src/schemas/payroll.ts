@@ -141,20 +141,42 @@ export const payrollRunQuerySchema = z.object({
 /**
  * Schema for preparing fiscal payroll vouchers.
  */
-export const payrollFiscalVoucherPrepareSchema = z.object({
-	paymentDateKey: z
-		.string()
-		.regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD')
-		.refine((value) => {
-			try {
-				parseDateKey(value);
-				return true;
-			} catch {
-				return false;
-			}
-		}, 'Invalid calendar date')
-		.optional(),
-}).default({});
+export const payrollFiscalVoucherPrepareSchema = z
+	.object({
+		paymentDateKey: z
+			.string()
+			.regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD')
+			.refine((value) => {
+				try {
+					parseDateKey(value);
+					return true;
+				} catch {
+					return false;
+				}
+			}, 'Invalid calendar date')
+			.optional(),
+	})
+	.default({});
+
+/**
+ * Schema for payroll fiscal preflight query parameters.
+ */
+export const payrollFiscalPreflightQuerySchema = z
+	.object({
+		paymentDateKey: z
+			.string()
+			.regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD')
+			.refine((value) => {
+				try {
+					parseDateKey(value);
+					return true;
+				} catch {
+					return false;
+				}
+			}, 'Invalid calendar date')
+			.optional(),
+	})
+	.default({});
 
 /**
  * Warning emitted during payroll calculation.

@@ -23,8 +23,14 @@ export type PayrollFiscalVoucherValidationIssueCode =
 	| 'RECEIVER_NSS_REQUIRED'
 	| 'RECEIVER_FISCAL_REGIME_REQUIRED'
 	| 'RECEIVER_FISCAL_POSTAL_CODE_REQUIRED'
+	| 'RECEIVER_CFDI_USE_REQUIRED'
+	| 'RECEIVER_EMPLOYEE_NUMBER_REQUIRED'
+	| 'RECEIVER_START_DATE_REQUIRED'
 	| 'RECEIVER_CONTRACT_TYPE_REQUIRED'
 	| 'RECEIVER_WORKDAY_TYPE_REQUIRED'
+	| 'RECEIVER_PAYROLL_REGIME_TYPE_REQUIRED'
+	| 'RECEIVER_PAYMENT_FREQUENCY_REQUIRED'
+	| 'RECEIVER_FEDERAL_ENTITY_REQUIRED'
 	| 'PAYMENT_DATE_REQUIRED'
 	| 'PERCEPTION_SAT_CODE_REQUIRED'
 	| 'PERCEPTION_AMOUNT_INVALID'
@@ -51,6 +57,7 @@ export interface PayrollFiscalIssuer {
 	rfc: string | null;
 	fiscalRegime: string | null;
 	expeditionPostalCode: string | null;
+	employerRegistrationNumber: string | null;
 }
 
 export interface PayrollFiscalReceiver {
@@ -60,8 +67,21 @@ export interface PayrollFiscalReceiver {
 	nss: string | null;
 	fiscalRegime: string | null;
 	fiscalPostalCode: string | null;
+	cfdiUseCode: 'CN01' | null;
+	employeeNumber: string | null;
+	employmentStartDateKey: string | null;
 	contractType: string | null;
+	unionized: 'Sí' | 'No' | null;
 	workdayType: string | null;
+	payrollRegimeType: string | null;
+	department: string | null;
+	position: string | null;
+	riskPosition: string | null;
+	paymentFrequencyCode: string | null;
+	bankAccount: string | null;
+	salaryBaseContribution: string | null;
+	integratedDailySalary: string | null;
+	federalEntityCode: string | null;
 }
 
 export type PayrollFiscalPerceptionInternalType = 'FISCAL_GROSS_PAY';
@@ -447,6 +467,33 @@ export function validatePayrollFiscalVoucher(
 			),
 		);
 	}
+	if (!hasText(voucher.receiver.cfdiUseCode)) {
+		errors.push(
+			createIssue(
+				'RECEIVER_CFDI_USE_REQUIRED',
+				'receiver.cfdiUseCode',
+				'Receiver CFDI use is required.',
+			),
+		);
+	}
+	if (!hasText(voucher.receiver.employeeNumber)) {
+		errors.push(
+			createIssue(
+				'RECEIVER_EMPLOYEE_NUMBER_REQUIRED',
+				'receiver.employeeNumber',
+				'Receiver employee number is required.',
+			),
+		);
+	}
+	if (!hasText(voucher.receiver.employmentStartDateKey)) {
+		errors.push(
+			createIssue(
+				'RECEIVER_START_DATE_REQUIRED',
+				'receiver.employmentStartDateKey',
+				'Receiver employment start date is required.',
+			),
+		);
+	}
 	if (!hasText(voucher.receiver.contractType)) {
 		errors.push(
 			createIssue(
@@ -462,6 +509,33 @@ export function validatePayrollFiscalVoucher(
 				'RECEIVER_WORKDAY_TYPE_REQUIRED',
 				'receiver.workdayType',
 				'Receiver workday type is required.',
+			),
+		);
+	}
+	if (!hasText(voucher.receiver.payrollRegimeType)) {
+		errors.push(
+			createIssue(
+				'RECEIVER_PAYROLL_REGIME_TYPE_REQUIRED',
+				'receiver.payrollRegimeType',
+				'Receiver payroll regime type is required.',
+			),
+		);
+	}
+	if (!hasText(voucher.receiver.paymentFrequencyCode)) {
+		errors.push(
+			createIssue(
+				'RECEIVER_PAYMENT_FREQUENCY_REQUIRED',
+				'receiver.paymentFrequencyCode',
+				'Receiver payment frequency is required.',
+			),
+		);
+	}
+	if (!hasText(voucher.receiver.federalEntityCode)) {
+		errors.push(
+			createIssue(
+				'RECEIVER_FEDERAL_ENTITY_REQUIRED',
+				'receiver.federalEntityCode',
+				'Receiver federal entity is required.',
 			),
 		);
 	}

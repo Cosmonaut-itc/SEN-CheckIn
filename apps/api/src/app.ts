@@ -27,6 +27,7 @@ import { jobPositionRoutes } from './routes/job-positions.js';
 import { locationRoutes } from './routes/locations.js';
 import { recognitionRoutes } from './routes/recognition.js';
 import { organizationRoutes } from './routes/organization.js';
+import { organizationFiscalRoutes } from './routes/payroll-fiscal.js';
 import { payrollRoutes } from './routes/payroll.js';
 import { payrollHolidaysRoutes } from './routes/payroll-holidays.js';
 import { payrollSettingsRoutes } from './routes/payroll-settings.js';
@@ -83,6 +84,7 @@ const createProtectedRoutes = () => {
 			.use(deviceRoutes)
 			.use(attendanceRoutes)
 			.use(organizationRoutes)
+			.use(organizationFiscalRoutes)
 			.use(payrollSettingsRoutes)
 			.use(payrollHolidaysRoutes)
 			.use(overtimeAuthorizationRoutes)
@@ -112,11 +114,11 @@ export const createApp = () => {
 	});
 
 	return (
-			new Elysia()
-				// Core plugins - order matters: CORS, error handler and logger should be first
-				.use(createApiCorsPlugin())
-				.use(errorHandlerPlugin)
-				.use(loggerPlugin)
+		new Elysia()
+			// Core plugins - order matters: CORS, error handler and logger should be first
+			.use(createApiCorsPlugin())
+			.use(errorHandlerPlugin)
+			.use(loggerPlugin)
 			.use(
 				openapi({
 					documentation: {

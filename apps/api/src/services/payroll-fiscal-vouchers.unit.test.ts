@@ -14,9 +14,58 @@ import {
 } from './payroll-real-fixtures.test-data.js';
 import {
 	buildPayrollFiscalVoucherFromCalculationRow,
+	type PayrollFiscalIssuer,
+	type PayrollFiscalReceiver,
 	toFiscalStampingPayload,
 	validatePayrollFiscalVoucher,
 } from './payroll-fiscal-vouchers.js';
+
+/**
+ * Builds a complete CFDI issuer fixture.
+ *
+ * @returns Complete fiscal issuer fixture
+ */
+function buildCompleteIssuer(): PayrollFiscalIssuer {
+	return {
+		name: 'AET',
+		rfc: 'AET010101AAA',
+		fiscalRegime: '601',
+		expeditionPostalCode: '64000',
+		employerRegistrationNumber: 'Y1234567890',
+	};
+}
+
+/**
+ * Builds a complete CFDI nomina receiver fixture.
+ *
+ * @param name - Employee display name
+ * @returns Complete fiscal receiver fixture
+ */
+function buildCompleteReceiver(name: string): PayrollFiscalReceiver {
+	return {
+		name,
+		rfc: 'XAXX010101000',
+		curp: 'XAXX010101HNEXXXA4',
+		nss: '12345678901',
+		fiscalRegime: '605',
+		fiscalPostalCode: '64000',
+		cfdiUseCode: 'CN01',
+		employeeNumber: 'A05',
+		employmentStartDateKey: '2024-01-15',
+		contractType: '01',
+		unionized: 'No',
+		workdayType: '01',
+		payrollRegimeType: '02',
+		department: 'Operaciones',
+		position: 'Ayudante general',
+		riskPosition: '1',
+		paymentFrequencyCode: '02',
+		bankAccount: null,
+		salaryBaseContribution: '300.00',
+		integratedDailySalary: '321.45',
+		federalEntityCode: 'NLE',
+	};
+}
 
 describe('payroll fiscal vouchers', () => {
 	it('builds CONTPAQi-parity fiscal voucher totals from AET lista de raya rows', () => {
@@ -28,22 +77,8 @@ describe('payroll fiscal vouchers', () => {
 				payrollRunId: 'run-aet-p10',
 				payrollRunEmployeeId: `line-${row.employeeId}`,
 				organizationId: 'org-aet',
-				issuer: {
-					name: 'AET',
-					rfc: 'AET010101AAA',
-					fiscalRegime: '601',
-					expeditionPostalCode: '64000',
-				},
-				receiver: {
-					name: row.name,
-					rfc: 'XAXX010101000',
-					curp: 'XAXX010101HNEXXXA4',
-					nss: '12345678901',
-					fiscalRegime: '605',
-					fiscalPostalCode: '64000',
-					contractType: '01',
-					workdayType: '01',
-				},
+				issuer: buildCompleteIssuer(),
+				receiver: buildCompleteReceiver(row.name),
 				periodStartDateKey: '2026-03-02',
 				periodEndDateKey: '2026-03-08',
 				paymentDateKey: '2026-03-08',
@@ -128,22 +163,8 @@ describe('payroll fiscal vouchers', () => {
 			payrollRunId: 'run-aet-p10',
 			payrollRunEmployeeId: `line-${row.employeeId}`,
 			organizationId: 'org-aet',
-			issuer: {
-				name: 'AET',
-				rfc: 'AET010101AAA',
-				fiscalRegime: '601',
-				expeditionPostalCode: '64000',
-			},
-			receiver: {
-				name: row.name,
-				rfc: 'XAXX010101000',
-				curp: 'XAXX010101HNEXXXA4',
-				nss: '12345678901',
-				fiscalRegime: '605',
-				fiscalPostalCode: '64000',
-				contractType: '01',
-				workdayType: '01',
-			},
+			issuer: buildCompleteIssuer(),
+			receiver: buildCompleteReceiver(row.name),
 			periodStartDateKey: '2026-03-02',
 			periodEndDateKey: '2026-03-08',
 			paymentDateKey: '2026-03-08',
@@ -190,22 +211,8 @@ describe('payroll fiscal vouchers', () => {
 			payrollRunId: 'run-subsidy',
 			payrollRunEmployeeId: 'line-subsidy',
 			organizationId: 'org-subsidy',
-			issuer: {
-				name: 'AET',
-				rfc: 'AET010101AAA',
-				fiscalRegime: '601',
-				expeditionPostalCode: '64000',
-			},
-			receiver: {
-				name: row.name,
-				rfc: 'XAXX010101000',
-				curp: 'XAXX010101HNEXXXA4',
-				nss: '12345678901',
-				fiscalRegime: '605',
-				fiscalPostalCode: '64000',
-				contractType: '01',
-				workdayType: '01',
-			},
+			issuer: buildCompleteIssuer(),
+			receiver: buildCompleteReceiver(row.name),
 			periodStartDateKey: '2026-03-02',
 			periodEndDateKey: '2026-03-08',
 			paymentDateKey: '2026-03-08',
@@ -266,22 +273,8 @@ describe('payroll fiscal vouchers', () => {
 			payrollRunId: 'run-no-subsidy',
 			payrollRunEmployeeId: 'line-no-subsidy',
 			organizationId: 'org-subsidy',
-			issuer: {
-				name: 'AET',
-				rfc: 'AET010101AAA',
-				fiscalRegime: '601',
-				expeditionPostalCode: '64000',
-			},
-			receiver: {
-				name: row.name,
-				rfc: 'XAXX010101000',
-				curp: 'XAXX010101HNEXXXA4',
-				nss: '12345678901',
-				fiscalRegime: '605',
-				fiscalPostalCode: '64000',
-				contractType: '01',
-				workdayType: '01',
-			},
+			issuer: buildCompleteIssuer(),
+			receiver: buildCompleteReceiver(row.name),
 			periodStartDateKey: '2026-03-02',
 			periodEndDateKey: '2026-03-08',
 			paymentDateKey: '2026-03-08',
@@ -304,22 +297,8 @@ describe('payroll fiscal vouchers', () => {
 			payrollRunId: 'run-aet-p10',
 			payrollRunEmployeeId: `line-${row.employeeId}`,
 			organizationId: 'org-aet',
-			issuer: {
-				name: 'AET',
-				rfc: 'AET010101AAA',
-				fiscalRegime: '601',
-				expeditionPostalCode: '64000',
-			},
-			receiver: {
-				name: row.name,
-				rfc: 'XAXX010101000',
-				curp: 'XAXX010101HNEXXXA4',
-				nss: '12345678901',
-				fiscalRegime: '605',
-				fiscalPostalCode: '64000',
-				contractType: '01',
-				workdayType: '01',
-			},
+			issuer: buildCompleteIssuer(),
+			receiver: buildCompleteReceiver(row.name),
 			periodStartDateKey: '2026-03-02',
 			periodEndDateKey: '2026-03-08',
 			paymentDateKey: '2026-03-08',
@@ -347,13 +326,13 @@ describe('payroll fiscal vouchers', () => {
 			payrollRunEmployeeId: `line-${row.employeeId}`,
 			organizationId: 'org-aet',
 			issuer: {
-				name: 'AET',
+				...buildCompleteIssuer(),
 				rfc: null,
 				fiscalRegime: null,
 				expeditionPostalCode: null,
 			},
 			receiver: {
-				name: row.name,
+				...buildCompleteReceiver(row.name),
 				rfc: null,
 				curp: null,
 				nss: null,
@@ -385,6 +364,53 @@ describe('payroll fiscal vouchers', () => {
 		]);
 	});
 
+	it('validates missing CFDI nomina receiver employment fields before stamping', () => {
+		const calculation = calculatePayrollFromData(buildAetP10PayrollArgs({ scope: 'TDD' }));
+		const row = calculation.employees[0];
+
+		if (!row) {
+			throw new Error('Expected at least one payroll row.');
+		}
+
+		const voucher = buildPayrollFiscalVoucherFromCalculationRow({
+			row,
+			payrollRunId: 'run-aet-p10',
+			payrollRunEmployeeId: `line-${row.employeeId}`,
+			organizationId: 'org-aet',
+			issuer: {
+				name: 'AET',
+				rfc: 'AET010101AAA',
+				fiscalRegime: '601',
+				expeditionPostalCode: '64000',
+				employerRegistrationNumber: 'Y1234567890',
+			},
+			receiver: {
+				...buildCompleteReceiver(row.name),
+				cfdiUseCode: null,
+				employeeNumber: null,
+				employmentStartDateKey: null,
+				payrollRegimeType: null,
+				paymentFrequencyCode: null,
+				federalEntityCode: null,
+			},
+			periodStartDateKey: '2026-03-02',
+			periodEndDateKey: '2026-03-08',
+			paymentDateKey: '2026-03-08',
+		});
+
+		const result = validatePayrollFiscalVoucher(voucher);
+
+		expect(result.status).toBe('BLOCKED');
+		expect(result.errors.map((error) => error.code)).toEqual([
+			'RECEIVER_CFDI_USE_REQUIRED',
+			'RECEIVER_EMPLOYEE_NUMBER_REQUIRED',
+			'RECEIVER_START_DATE_REQUIRED',
+			'RECEIVER_PAYROLL_REGIME_TYPE_REQUIRED',
+			'RECEIVER_PAYMENT_FREQUENCY_REQUIRED',
+			'RECEIVER_FEDERAL_ENTITY_REQUIRED',
+		]);
+	});
+
 	it('blocks applied payroll deductions that do not have SAT deduction codes', () => {
 		const calculation = calculatePayrollFromData(
 			buildAetP10PayrollArgs({
@@ -405,22 +431,8 @@ describe('payroll fiscal vouchers', () => {
 			payrollRunId: 'run-aet-p10',
 			payrollRunEmployeeId: `line-${row.employeeId}`,
 			organizationId: 'org-aet',
-			issuer: {
-				name: 'AET',
-				rfc: 'AET010101AAA',
-				fiscalRegime: '601',
-				expeditionPostalCode: '64000',
-			},
-			receiver: {
-				name: row.name,
-				rfc: 'XAXX010101000',
-				curp: 'XAXX010101HNEXXXA4',
-				nss: '12345678901',
-				fiscalRegime: '605',
-				fiscalPostalCode: '64000',
-				contractType: '01',
-				workdayType: '01',
-			},
+			issuer: buildCompleteIssuer(),
+			receiver: buildCompleteReceiver(row.name),
 			periodStartDateKey: '2026-03-02',
 			periodEndDateKey: '2026-03-08',
 			paymentDateKey: '2026-03-08',
@@ -455,22 +467,8 @@ describe('payroll fiscal vouchers', () => {
 			payrollRunId: 'run-aet-p10',
 			payrollRunEmployeeId: `line-${row.employeeId}`,
 			organizationId: 'org-aet',
-			issuer: {
-				name: 'AET',
-				rfc: 'AET010101AAA',
-				fiscalRegime: '601',
-				expeditionPostalCode: '64000',
-			},
-			receiver: {
-				name: row.name,
-				rfc: 'XAXX010101000',
-				curp: 'XAXX010101HNEXXXA4',
-				nss: '12345678901',
-				fiscalRegime: '605',
-				fiscalPostalCode: '64000',
-				contractType: '01',
-				workdayType: '01',
-			},
+			issuer: buildCompleteIssuer(),
+			receiver: buildCompleteReceiver(row.name),
 			periodStartDateKey: '2026-03-02',
 			periodEndDateKey: '2026-03-08',
 			paymentDateKey: '2026-03-08',

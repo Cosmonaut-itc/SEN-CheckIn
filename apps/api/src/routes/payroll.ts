@@ -8,6 +8,7 @@ import {
 	attendanceRecord,
 	employee,
 	employeeDeduction,
+	employeeFiscalProfile,
 	employeeGratification,
 	employeeIncapacity,
 	employeeSchedule,
@@ -15,10 +16,13 @@ import {
 	member,
 	organization,
 	overtimeAuthorization,
+	organizationFiscalProfile,
+	payrollConceptSatMapping,
 	payrollFiscalVoucher,
 	payrollRun,
 	payrollRunEmployee,
 	payrollSetting,
+	satFiscalCatalogEntry,
 	vacationRequest,
 	vacationRequestDay,
 } from '../db/schema.js';
@@ -88,6 +92,21 @@ interface PendingPayrollDeductionUpdate {
 	previousStartDateKey: string;
 	previousEndDateKey: string | null;
 }
+
+type PayrollFiscalProfileResolverTx = {
+	select: typeof db.select;
+};
+
+type FiscalArtifactManifest = {
+	catalogSourceVersions: string[];
+};
+
+type PayrollFiscalProfilesForRun = {
+	organizationFiscalProfile: typeof organizationFiscalProfile.$inferSelect | null;
+	employeeFiscalProfilesByEmployeeId: Map<string, typeof employeeFiscalProfile.$inferSelect>;
+	conceptMappings: (typeof payrollConceptSatMapping.$inferSelect)[];
+	catalogManifest: FiscalArtifactManifest;
+};
 
 interface PendingPayrollGratificationUpdate {
 	gratificationId: string;
@@ -433,45 +452,63 @@ function createFiscalVoucherSourceIssue(
 }
 
 /**
- * Reads an optional string from a JSON object.
+ * Resolves fiscal master data snapshots needed to prepare vouchers for a run.
  *
- * @param source - Source JSON record
- * @param keys - Candidate property names in priority order
- * @returns String value or null
+ * @param args - Transaction and payroll run scope
+ * @returns Organization profile, employee profiles, concept mappings and catalog manifest
  */
-function readStringField(source: Record<string, unknown> | null, keys: string[]): string | null {
-	if (!source) {
-		return null;
-	}
+async function resolvePayrollFiscalProfilesForRun(args: {
+	tx: PayrollFiscalProfileResolverTx;
+	organizationId: string;
+	payrollRunId: string;
+}): Promise<PayrollFiscalProfilesForRun> {
+	const [organizationProfile] = await args.tx
+		.select()
+		.from(organizationFiscalProfile)
+		.where(eq(organizationFiscalProfile.organizationId, args.organizationId))
+		.limit(1);
+	const runEmployeeRows = await args.tx
+		.select({ employeeId: payrollRunEmployee.employeeId })
+		.from(payrollRunEmployee)
+		.where(eq(payrollRunEmployee.payrollRunId, args.payrollRunId));
+	const employeeIds = runEmployeeRows.map((row) => row.employeeId);
+	const employeeProfileRows =
+		employeeIds.length === 0
+			? []
+			: await args.tx
+					.select()
+					.from(employeeFiscalProfile)
+					.where(
+						and(
+							eq(employeeFiscalProfile.organizationId, args.organizationId),
+							inArray(employeeFiscalProfile.employeeId, employeeIds),
+						),
+					);
+	const conceptMappings = await args.tx
+		.select()
+		.from(payrollConceptSatMapping)
+		.where(
+			or(
+				eq(payrollConceptSatMapping.organizationId, args.organizationId),
+				isNull(payrollConceptSatMapping.organizationId),
+			),
+		);
+	const catalogRows = await args.tx
+		.select({ sourceVersion: satFiscalCatalogEntry.sourceVersion })
+		.from(satFiscalCatalogEntry);
 
-	for (const key of keys) {
-		const value = source[key];
-		if (typeof value === 'string' && value.trim().length > 0) {
-			return value.trim();
-		}
-	}
-
-	return null;
-}
-
-/**
- * Parses organization metadata for fiscal pre-stamping fields.
- *
- * @param metadata - Better Auth organization metadata string
- * @returns Parsed JSON object or null
- */
-function parseOrganizationMetadata(
-	metadata: string | null | undefined,
-): Record<string, unknown> | null {
-	if (!metadata) {
-		return null;
-	}
-
-	try {
-		return asRecord(JSON.parse(metadata));
-	} catch {
-		return null;
-	}
+	return {
+		organizationFiscalProfile: organizationProfile ?? null,
+		employeeFiscalProfilesByEmployeeId: new Map(
+			employeeProfileRows.map((profile) => [profile.employeeId, profile]),
+		),
+		conceptMappings,
+		catalogManifest: {
+			catalogSourceVersions: Array.from(
+				new Set(catalogRows.map((row) => row.sourceVersion)),
+			).sort(),
+		},
+	};
 }
 
 /**
@@ -908,18 +945,16 @@ function buildPreparedFiscalVoucherRow(args: {
 	};
 	paymentDateKey: string | null;
 	line: PayrollRunEmployeeFiscalSource;
-	organizationName: string | null;
-	organizationMetadata: Record<string, unknown> | null;
-	employeeProfile: {
-		name: string;
-		rfc: string | null;
-		nss: string | null;
-	};
+	organizationProfile: typeof organizationFiscalProfile.$inferSelect | null;
+	employeeProfile: typeof employeeFiscalProfile.$inferSelect | null;
 }): Omit<PayrollFiscalVoucherDbRow, 'id' | 'createdAt' | 'updatedAt'> {
+	const organizationProfile = args.organizationProfile;
+	const employeeProfile = args.employeeProfile;
+	const employeeName = employeeProfile?.satName ?? args.line.employeeId;
 	const calculationRow = buildFiscalVoucherCalculationRow({
 		run: args.run,
 		line: args.line,
-		employeeName: args.employeeProfile.name,
+		employeeName,
 	});
 	const voucher = buildPayrollFiscalVoucherFromCalculationRow({
 		row: calculationRow.row,
@@ -927,27 +962,37 @@ function buildPreparedFiscalVoucherRow(args: {
 		payrollRunEmployeeId: args.line.id,
 		organizationId: args.run.organizationId,
 		issuer: {
-			name: args.organizationName,
-			rfc: readStringField(args.organizationMetadata, ['rfc', 'fiscalRfc']),
-			fiscalRegime: readStringField(args.organizationMetadata, [
-				'fiscalRegime',
-				'regimenFiscal',
-			]),
-			expeditionPostalCode: readStringField(args.organizationMetadata, [
-				'expeditionPostalCode',
-				'lugarExpedicion',
-				'postalCode',
-			]),
+			name: organizationProfile?.legalName ?? null,
+			rfc: organizationProfile?.rfc ?? null,
+			fiscalRegime: organizationProfile?.fiscalRegimeCode ?? null,
+			expeditionPostalCode: organizationProfile?.expeditionPostalCode ?? null,
+			employerRegistrationNumber: organizationProfile?.employerRegistrationNumber ?? null,
 		},
 		receiver: {
-			name: args.employeeProfile.name,
-			rfc: args.employeeProfile.rfc,
-			curp: null,
-			nss: args.employeeProfile.nss,
-			fiscalRegime: null,
-			fiscalPostalCode: null,
-			contractType: null,
-			workdayType: null,
+			name: employeeName,
+			rfc: employeeProfile?.rfc ?? null,
+			curp: employeeProfile?.curp ?? null,
+			nss: employeeProfile?.socialSecurityNumber ?? null,
+			fiscalRegime: employeeProfile?.fiscalRegimeCode ?? null,
+			fiscalPostalCode: employeeProfile?.fiscalPostalCode ?? null,
+			cfdiUseCode: employeeProfile?.cfdiUseCode === 'CN01' ? 'CN01' : null,
+			employeeNumber: employeeProfile?.employeeNumber ?? null,
+			employmentStartDateKey: employeeProfile?.employmentStartDateKey ?? null,
+			contractType: employeeProfile?.contractTypeCode ?? null,
+			unionized: employeeProfile?.unionized ?? null,
+			workdayType: employeeProfile?.workdayTypeCode ?? null,
+			payrollRegimeType: employeeProfile?.payrollRegimeTypeCode ?? null,
+			department: employeeProfile?.department ?? null,
+			position: employeeProfile?.position ?? null,
+			riskPosition: employeeProfile?.riskPositionCode ?? null,
+			paymentFrequencyCode: employeeProfile?.paymentFrequencyCode ?? null,
+			bankAccount: employeeProfile?.bankAccount ?? null,
+			salaryBaseContribution: employeeProfile?.salaryBaseContribution ?? null,
+			integratedDailySalary: employeeProfile?.integratedDailySalary ?? null,
+			federalEntityCode:
+				employeeProfile?.federalEntityCode ??
+				organizationProfile?.defaultFederalEntityCode ??
+				null,
 		},
 		periodStartDateKey: toDateKeyInTimeZone(args.run.periodStart, args.run.timeZone),
 		periodEndDateKey: toDateKeyInTimeZone(args.run.periodEnd, args.run.timeZone),
@@ -2241,6 +2286,21 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				return buildErrorResponse('You do not have access to payroll fiscal vouchers', 403);
 			}
 
+			const fiscalPreflight = await buildPayrollFiscalPreflight({
+				organizationId: run.organizationId,
+				payrollRunId: id,
+			});
+			if (!fiscalPreflight.canPrepareFiscalVouchers) {
+				set.status = 409;
+				return {
+					...buildErrorResponse(
+						'Payroll fiscal preflight must be ready before preparing fiscal vouchers',
+						409,
+					),
+					data: fiscalPreflight,
+				};
+			}
+
 			const payrollSettingRows = await db
 				.select({
 					timeZone: payrollSetting.timeZone,
@@ -2311,43 +2371,11 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 					.where(
 						eq(payrollRunEmployee.payrollRunId, id),
 					)) as PayrollRunEmployeeFiscalSource[];
-
-				const organizationRows = await tx
-					.select({
-						name: organization.name,
-						metadata: organization.metadata,
-					})
-					.from(organization)
-					.where(eq(organization.id, run.organizationId))
-					.limit(1);
-				const organizationRow = organizationRows[0] as
-					| { name?: string | null; metadata?: string | null }
-					| undefined;
-
-				const employeeIds = lines.map((line) => line.employeeId);
-				const employeeRows =
-					employeeIds.length === 0
-						? []
-						: await tx
-								.select({
-									id: employee.id,
-									firstName: employee.firstName,
-									lastName: employee.lastName,
-									rfc: employee.rfc,
-									nss: employee.nss,
-								})
-								.from(employee)
-								.where(inArray(employee.id, employeeIds));
-				const employeesById = new Map(
-					employeeRows.map((row) => [
-						row.id,
-						{
-							name: `${row.firstName ?? ''} ${row.lastName ?? ''}`.trim(),
-							rfc: row.rfc ?? null,
-							nss: row.nss ?? null,
-						},
-					]),
-				);
+				const fiscalProfiles = await resolvePayrollFiscalProfilesForRun({
+					tx,
+					organizationId: run.organizationId,
+					payrollRunId: id,
+				});
 
 				const preparedRows = lines.map((line) =>
 					buildPreparedFiscalVoucherRow({
@@ -2361,13 +2389,11 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 						},
 						paymentDateKey,
 						line,
-						organizationName: organizationRow?.name ?? null,
-						organizationMetadata: parseOrganizationMetadata(organizationRow?.metadata),
-						employeeProfile: employeesById.get(line.employeeId) ?? {
-							name: line.employeeId,
-							rfc: null,
-							nss: null,
-						},
+						organizationProfile: fiscalProfiles.organizationFiscalProfile,
+						employeeProfile:
+							fiscalProfiles.employeeFiscalProfilesByEmployeeId.get(
+								line.employeeId,
+							) ?? null,
 					}),
 				);
 

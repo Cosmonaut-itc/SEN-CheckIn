@@ -202,7 +202,6 @@
 				"streak": "Racha {days}d",
 				"lastIncomplete": "Último {date}",
 				"noRecentIncomplete": "Sin incompletos",
-				"employeesMore": "+{count} más",
 				"noEmployees": "Sin empleados programados"
 			},
 			"employeeStatus": {

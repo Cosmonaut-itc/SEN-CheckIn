@@ -99,10 +99,6 @@ vi.mock('next-intl', () => ({
 				return `Último ${values?.date ?? ''}`;
 			}
 
-			if (key === 'staffingCoverage.values.employeesMore') {
-				return `+${values?.count ?? 0} más`;
-			}
-
 			if (key === 'staffingCoverage.values.noEmployees') {
 				return 'Sin empleados programados';
 			}

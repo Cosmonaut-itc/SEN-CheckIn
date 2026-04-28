@@ -217,7 +217,7 @@ export async function getPayrollFiscalPreflightAction(
 ): Promise<FiscalProfileActionResult<PayrollFiscalPreflightResult>> {
 	try {
 		const api = createServerApiClient(await getCookieHeader());
-		const response = await api.payroll.runs[runId]['fiscal-preflight'].get();
+		const response = await api.payroll.runs[runId]['fiscal-preflight'].get({ $query: {} });
 
 		if (response.error) {
 			return {

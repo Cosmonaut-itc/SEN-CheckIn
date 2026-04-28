@@ -290,7 +290,7 @@ export async function saveEmployeeFiscalProfile(
 export async function fetchPayrollFiscalPreflight(
 	runId: string,
 ): Promise<PayrollFiscalPreflightResult> {
-	const response = await api.payroll.runs[runId]['fiscal-preflight'].get();
+	const response = await api.payroll.runs[runId]['fiscal-preflight'].get({ $query: {} });
 
 	if (response.error) {
 		throw new Error('No se pudo cargar la validación fiscal de la nómina');

@@ -135,6 +135,24 @@ function formatCoveragePercent(value: number): string {
 }
 
 /**
+ * Builds compact employee detail rows for a coverage requirement.
+ *
+ * @param row - Staffing coverage display row
+ * @returns Employee detail rows to render
+ */
+function buildVisibleStaffingEmployees(
+	row: StaffingCoverageDisplayRow,
+): StaffingCoverageDisplayRow['employees'] {
+	return [...row.employees].sort((left, right) => {
+		if (left.status !== right.status) {
+			return left.status === 'MISSING' ? -1 : 1;
+		}
+
+		return left.employeeName.localeCompare(right.employeeName, 'es-MX');
+	});
+}
+
+/**
  * Formats a date key for compact Spanish dashboard display.
  *
  * @param dateKey - Date key in YYYY-MM-DD format
@@ -402,6 +420,9 @@ function StaffingCoveragePanel({
 										{t('staffingCoverage.table.missing')}
 									</th>
 									<th className="px-4 py-2 font-medium">
+										{t('staffingCoverage.table.employees')}
+									</th>
+									<th className="px-4 py-2 font-medium">
 										{t('staffingCoverage.table.coverage')}
 									</th>
 									<th className="px-4 py-2 font-medium">
@@ -413,70 +434,110 @@ function StaffingCoveragePanel({
 								</tr>
 							</thead>
 							<tbody className="divide-y">
-								{rows.map((row) => (
-									<tr key={row.requirementId} className="align-middle">
-										<td className="px-4 py-2 font-medium">
-											{row.locationName ??
-												t('staffingCoverage.fallbackLocation')}
-										</td>
-										<td className="px-4 py-2">
-											{row.jobPositionName ??
-												t('staffingCoverage.fallbackJobPosition')}
-										</td>
-										<td className="px-4 py-2 tabular-nums">
-											{t('staffingCoverage.values.arrivedMinimum', {
-												arrived: row.arrivedCount,
-												minimum: row.minimumRequired,
-											})}
-										</td>
-										<td className="px-4 py-2">
-											{row.missingCount > 0
-												? t('staffingCoverage.values.missing', {
-														count: row.missingCount,
-													})
-												: t('staffingCoverage.values.noMissing')}
-										</td>
-										<td className="px-4 py-2 tabular-nums">
-											{formatCoveragePercent(row.coveragePercent)}
-										</td>
-										<td className="px-4 py-2 text-xs text-muted-foreground">
-											<div className="flex flex-wrap gap-2">
-												<span>
-													{t('staffingCoverage.values.streak', {
-														days:
-															row.stats
-																?.currentStreakIncompleteDays ?? 0,
-													})}
-												</span>
-												<span>
-													{row.stats?.lastIncompleteDateKey
-														? t(
-																'staffingCoverage.values.lastIncomplete',
-																{
-																	date: row.stats
-																		.lastIncompleteDateKey
-																		? formatCoverageDateKey(
-																				row.stats
-																					.lastIncompleteDateKey,
+								{rows.map((row) => {
+									const visibleEmployees = buildVisibleStaffingEmployees(row);
+
+									return (
+										<tr key={row.requirementId} className="align-middle">
+											<td className="px-4 py-2 font-medium">
+												{row.locationName ??
+													t('staffingCoverage.fallbackLocation')}
+											</td>
+											<td className="px-4 py-2">
+												{row.jobPositionName ??
+													t('staffingCoverage.fallbackJobPosition')}
+											</td>
+											<td className="px-4 py-2 tabular-nums">
+												{t('staffingCoverage.values.arrivedMinimum', {
+													arrived: row.arrivedCount,
+													minimum: row.minimumRequired,
+												})}
+											</td>
+											<td className="px-4 py-2">
+												{row.missingCount > 0
+													? t('staffingCoverage.values.missing', {
+															count: row.missingCount,
+														})
+													: t('staffingCoverage.values.noMissing')}
+											</td>
+											<td className="px-4 py-2">
+												{visibleEmployees.length === 0 ? (
+													<span className="text-xs text-muted-foreground">
+														{t('staffingCoverage.values.noEmployees')}
+													</span>
+												) : (
+													<div className="flex max-w-[18rem] flex-wrap gap-1.5">
+														{visibleEmployees.map((employee) => (
+															<span
+																key={employee.employeeId}
+																className="inline-flex items-center gap-1 rounded-md border border-[color:var(--border-subtle)] px-2 py-1 text-xs"
+															>
+																<span className="max-w-[8rem] truncate font-medium">
+																	{employee.employeeName}
+																</span>
+																<span className="text-muted-foreground">
+																	{employee.status === 'ARRIVED'
+																		? t(
+																				'staffingCoverage.employeeStatus.arrived',
 																			)
-																		: '',
-																},
-															)
+																		: t(
+																				'staffingCoverage.employeeStatus.missing',
+																			)}
+																</span>
+															</span>
+														))}
+													</div>
+												)}
+											</td>
+											<td className="px-4 py-2 tabular-nums">
+												{formatCoveragePercent(row.coveragePercent)}
+											</td>
+											<td className="px-4 py-2 text-xs text-muted-foreground">
+												<div className="flex flex-wrap gap-2">
+													<span>
+														{t('staffingCoverage.values.streak', {
+															days:
+																row.stats
+																	?.currentStreakIncompleteDays ??
+																0,
+														})}
+													</span>
+													<span>
+														{row.stats?.lastIncompleteDateKey
+															? t(
+																	'staffingCoverage.values.lastIncomplete',
+																	{
+																		date: row.stats
+																			.lastIncompleteDateKey
+																			? formatCoverageDateKey(
+																					row.stats
+																						.lastIncompleteDateKey,
+																				)
+																			: '',
+																	},
+																)
+															: t(
+																	'staffingCoverage.values.noRecentIncomplete',
+																)}
+													</span>
+												</div>
+											</td>
+											<td className="px-4 py-2">
+												<Badge
+													variant={
+														row.isComplete ? 'success' : 'warning'
+													}
+												>
+													{row.isComplete
+														? t('staffingCoverage.status.complete')
 														: t(
-																'staffingCoverage.values.noRecentIncomplete',
+																'staffingCoverage.status.incomplete',
 															)}
-												</span>
-											</div>
-										</td>
-										<td className="px-4 py-2">
-											<Badge variant={row.isComplete ? 'success' : 'warning'}>
-												{row.isComplete
-													? t('staffingCoverage.status.complete')
-													: t('staffingCoverage.status.incomplete')}
-											</Badge>
-										</td>
-									</tr>
-								))}
+												</Badge>
+											</td>
+										</tr>
+									);
+								})}
 							</tbody>
 						</table>
 					</div>

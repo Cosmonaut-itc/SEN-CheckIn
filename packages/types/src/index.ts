@@ -388,9 +388,9 @@ export interface StaffingCoverageItem {
 	minimumRequired: number;
 	/** Employees scheduled for the evaluated date */
 	scheduledCount: number;
-	/** Scheduled employees who arrived */
+	/** Active employees in this position who arrived at the evaluated location */
 	arrivedCount: number;
-	/** Scheduled employees still missing */
+	/** Remaining staffing gap against the configured minimum */
 	missingCount: number;
 	/** Coverage percentage capped at 100 */
 	coveragePercent: number;

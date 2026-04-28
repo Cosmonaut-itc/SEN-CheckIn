@@ -59,6 +59,7 @@ export interface StaffingCoverageAttendanceRow {
 	timestamp: Date;
 	offsiteDateKey: string | null;
 	localDateKey?: string | null;
+	locationId?: string | null;
 }
 
 export interface StaffingCoverageEmployeeResult {
@@ -138,6 +139,7 @@ export interface CalculateStaffingCoverageStatsInput
 type AttendanceArrival = {
 	checkedInAt: Date;
 	attendanceType: 'CHECK_IN' | 'WORK_OFFSITE';
+	locationId: string | null;
 };
 
 /**
@@ -254,11 +256,11 @@ function isEmployeeScheduled(args: {
  * @param dateKey - Evaluated date key
  * @returns Arrival lookup by employee
  */
-function buildArrivalByEmployee(
+function buildArrivalsByEmployee(
 	attendanceRecords: StaffingCoverageAttendanceRow[],
 	dateKey: string,
-): Map<string, AttendanceArrival> {
-	const arrivals = new Map<string, AttendanceArrival>();
+): Map<string, AttendanceArrival[]> {
+	const arrivals = new Map<string, AttendanceArrival[]>();
 	const relevantRecords = attendanceRecords
 		.filter((record) => {
 			if (record.type !== 'CHECK_IN' && record.type !== 'WORK_OFFSITE') {
@@ -269,17 +271,42 @@ function buildArrivalByEmployee(
 		.sort((left, right) => left.timestamp.getTime() - right.timestamp.getTime());
 
 	for (const record of relevantRecords) {
-		if (arrivals.has(record.employeeId)) {
-			continue;
-		}
 		const attendanceType = record.type === 'CHECK_IN' ? 'CHECK_IN' : 'WORK_OFFSITE';
-		arrivals.set(record.employeeId, {
+		const employeeArrivals = arrivals.get(record.employeeId) ?? [];
+		employeeArrivals.push({
 			checkedInAt: record.timestamp,
 			attendanceType,
+			locationId: record.locationId ?? null,
 		});
+		arrivals.set(record.employeeId, employeeArrivals);
 	}
 
 	return arrivals;
+}
+
+/**
+ * Selects the first arrival that covers the evaluated requirement location.
+ *
+ * @param employee - Employee row
+ * @param requirementLocationId - Staffing requirement location
+ * @param arrivalsByEmployee - Arrival rows grouped by employee
+ * @returns First matching arrival, if any
+ */
+function findArrivalForRequirement(args: {
+	employee: StaffingCoverageEmployeeRow;
+	requirementLocationId: string;
+	arrivalsByEmployee: Map<string, AttendanceArrival[]>;
+}): AttendanceArrival | null {
+	const arrivals = args.arrivalsByEmployee.get(args.employee.id) ?? [];
+	return (
+		arrivals.find((arrival) => {
+			const arrivalLocationId =
+				arrival.attendanceType === 'WORK_OFFSITE'
+					? (arrival.locationId ?? args.employee.locationId)
+					: arrival.locationId;
+			return arrivalLocationId === args.requirementLocationId;
+		}) ?? null
+	);
 }
 
 /**
@@ -336,7 +363,7 @@ export function calculateStaffingCoverageForDate(
 		);
 	}
 
-	const arrivalByEmployee = buildArrivalByEmployee(input.attendanceRecords, input.dateKey);
+	const arrivalsByEmployee = buildArrivalsByEmployee(input.attendanceRecords, input.dateKey);
 	const scopedRequirements = scopeRequirements(
 		input.requirements,
 		input.organizationId,
@@ -344,15 +371,16 @@ export function calculateStaffingCoverageForDate(
 	);
 
 	const items = scopedRequirements.map((requirement) => {
-		const scheduledEmployees = input.employees
+		const employeesForRequirement = input.employees.filter((employee) => {
+			return (
+				employee.organizationId === input.organizationId &&
+				employee.status === 'ACTIVE' &&
+				employee.jobPositionId === requirement.jobPositionId
+			);
+		});
+		const scheduledEmployees = employeesForRequirement
 			.filter((employee) => {
-				if (employee.organizationId !== input.organizationId || employee.status !== 'ACTIVE') {
-					return false;
-				}
 				if (employee.locationId !== requirement.locationId) {
-					return false;
-				}
-				if (employee.jobPositionId !== requirement.jobPositionId) {
 					return false;
 				}
 				return isEmployeeScheduled({
@@ -371,20 +399,44 @@ export function calculateStaffingCoverageForDate(
 				const rightName = formatEmployeeName(right);
 				return leftName.localeCompare(rightName, 'es-MX');
 			});
+		const scheduledEmployeeIds = new Set(scheduledEmployees.map((employee) => employee.id));
+		const arrivedEmployees = employeesForRequirement.filter((employee) => {
+			return Boolean(
+				findArrivalForRequirement({
+					employee,
+					requirementLocationId: requirement.locationId,
+					arrivalsByEmployee,
+				}),
+			);
+		});
+		const arrivedEmployeeIds = new Set(arrivedEmployees.map((employee) => employee.id));
+		const displayEmployees = [
+			...scheduledEmployees,
+			...arrivedEmployees.filter((employee) => !scheduledEmployeeIds.has(employee.id)),
+		].sort((left, right) => {
+			const leftName = formatEmployeeName(left);
+			const rightName = formatEmployeeName(right);
+			return leftName.localeCompare(rightName, 'es-MX');
+		});
 
-		const employees = scheduledEmployees.map((employee) => {
-			const arrival = arrivalByEmployee.get(employee.id);
+		const employees = displayEmployees.map((employee) => {
+			const arrival = findArrivalForRequirement({
+				employee,
+				requirementLocationId: requirement.locationId,
+				arrivalsByEmployee,
+			});
+			const arrivedForRequirement = arrivedEmployeeIds.has(employee.id);
 			return {
 				employeeId: employee.id,
 				employeeName: formatEmployeeName(employee),
 				employeeCode: employee.code,
-				status: arrival ? 'ARRIVED' : 'MISSING',
-				checkedInAt: arrival?.checkedInAt ?? null,
-				attendanceType: arrival?.attendanceType ?? null,
+				status: arrivedForRequirement ? 'ARRIVED' : 'MISSING',
+				checkedInAt: arrivedForRequirement ? (arrival?.checkedInAt ?? null) : null,
+				attendanceType: arrivedForRequirement ? (arrival?.attendanceType ?? null) : null,
 			} satisfies StaffingCoverageEmployeeResult;
 		});
 
-		const arrivedCount = employees.filter((employee) => employee.status === 'ARRIVED').length;
+		const arrivedCount = arrivedEmployees.length;
 		const minimumRequired = requirement.minimumRequired ?? 0;
 		const coveragePercent = calculateCoveragePercent(arrivedCount, minimumRequired);
 
@@ -395,9 +447,9 @@ export function calculateStaffingCoverageForDate(
 			jobPositionId: requirement.jobPositionId,
 			jobPositionName: requirement.jobPositionName,
 			minimumRequired,
-			scheduledCount: employees.length,
+			scheduledCount: scheduledEmployees.length,
 			arrivedCount,
-			missingCount: employees.length - arrivedCount,
+			missingCount: Math.max(minimumRequired - arrivedCount, 0),
 			coveragePercent,
 			isComplete: arrivedCount >= minimumRequired,
 			employees,

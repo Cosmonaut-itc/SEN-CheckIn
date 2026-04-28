@@ -68,6 +68,7 @@ function checkIn(
 		employeeId,
 		type: 'CHECK_IN',
 		timestamp,
+		locationId: 'location-1',
 		offsiteDateKey: null,
 	};
 }
@@ -179,7 +180,7 @@ describe('staffing coverage calculations', () => {
 		expect(result.items[0]).toMatchObject({
 			scheduledCount: 1,
 			arrivedCount: 1,
-			missingCount: 0,
+			missingCount: 1,
 			coveragePercent: 50,
 			isComplete: false,
 		});
@@ -193,6 +194,149 @@ describe('staffing coverage calculations', () => {
 				attendanceType: 'WORK_OFFSITE',
 			},
 		]);
+	});
+
+	it('counts active arrivals at the requirement location even when the employee was not scheduled', () => {
+		const unscheduledArrival: StaffingCoverageEmployeeRow = {
+			id: 'employee-unscheduled-arrival',
+			organizationId: 'org-1',
+			firstName: 'Marta',
+			lastName: 'Cano',
+			code: 'A003',
+			status: 'ACTIVE',
+			locationId: 'location-1',
+			jobPositionId: 'position-guard',
+		};
+
+		const result = calculateStaffingCoverageForDate({
+			dateKey: mondayDateKey,
+			organizationId: 'org-1',
+			requirements: [baseRequirement],
+			employees: [...baseEmployees, unscheduledArrival],
+			schedules: mondaySchedules,
+			exceptions: [],
+			attendanceRecords: [
+				checkIn('employee-arrived'),
+				checkIn('employee-unscheduled-arrival', new Date('2026-04-20T15:10:00.000Z')),
+			],
+		});
+
+		expect(result.items[0]).toMatchObject({
+			scheduledCount: 2,
+			arrivedCount: 2,
+			missingCount: 0,
+			coveragePercent: 100,
+			isComplete: true,
+		});
+		expect(result.items[0]?.employees).toContainEqual({
+			employeeId: 'employee-unscheduled-arrival',
+			employeeName: 'Marta Cano',
+			employeeCode: 'A003',
+			status: 'ARRIVED',
+			checkedInAt: new Date('2026-04-20T15:10:00.000Z'),
+			attendanceType: 'CHECK_IN',
+		});
+	});
+
+	it('uses the attendance location instead of assigned location for CHECK_IN coverage', () => {
+		const floatingEmployee: StaffingCoverageEmployeeRow = {
+			id: 'employee-floating',
+			organizationId: 'org-1',
+			firstName: 'Rene',
+			lastName: 'Diaz',
+			code: 'A004',
+			status: 'ACTIVE',
+			locationId: 'location-2',
+			jobPositionId: 'position-guard',
+		};
+
+		const result = calculateStaffingCoverageForDate({
+			dateKey: mondayDateKey,
+			organizationId: 'org-1',
+			requirements: [baseRequirement],
+			employees: [...baseEmployees, floatingEmployee],
+			schedules: mondaySchedules,
+			exceptions: [],
+			attendanceRecords: [
+				checkIn('employee-arrived'),
+				{
+					...checkIn('employee-floating', new Date('2026-04-20T15:15:00.000Z')),
+					locationId: 'location-1',
+				},
+			],
+		});
+
+		expect(result.items[0]).toMatchObject({
+			arrivedCount: 2,
+			missingCount: 0,
+			isComplete: true,
+		});
+		expect(result.items[0]?.employees).toContainEqual({
+			employeeId: 'employee-floating',
+			employeeName: 'Rene Diaz',
+			employeeCode: 'A004',
+			status: 'ARRIVED',
+			checkedInAt: new Date('2026-04-20T15:15:00.000Z'),
+			attendanceType: 'CHECK_IN',
+		});
+	});
+
+	it('uses the first arrival at the requirement location when an employee checks in elsewhere first', () => {
+		const result = calculateStaffingCoverageForDate({
+			dateKey: mondayDateKey,
+			organizationId: 'org-1',
+			requirements: [{ ...baseRequirement, minimumRequired: 1 }],
+			employees: [baseEmployees[0]!],
+			schedules: mondaySchedules,
+			exceptions: [],
+			attendanceRecords: [
+				{
+					...checkIn('employee-arrived', new Date('2026-04-20T13:00:00.000Z')),
+					locationId: 'location-2',
+				},
+				{
+					...checkIn('employee-arrived', new Date('2026-04-20T14:00:00.000Z')),
+					locationId: 'location-1',
+				},
+			],
+		});
+
+		expect(result.items[0]).toMatchObject({
+			arrivedCount: 1,
+			isComplete: true,
+		});
+		expect(result.items[0]?.employees[0]).toMatchObject({
+			status: 'ARRIVED',
+			checkedInAt: new Date('2026-04-20T14:00:00.000Z'),
+		});
+	});
+
+	it('does not use the assigned location as a fallback for CHECK_IN arrivals without a device location', () => {
+		const result = calculateStaffingCoverageForDate({
+			dateKey: mondayDateKey,
+			organizationId: 'org-1',
+			requirements: [{ ...baseRequirement, minimumRequired: 1 }],
+			employees: [baseEmployees[0]!],
+			schedules: [{ employeeId: 'employee-arrived', dayOfWeek: 1, isWorkingDay: true }],
+			exceptions: [],
+			attendanceRecords: [
+				{
+					...checkIn('employee-arrived'),
+					locationId: null,
+				},
+			],
+		});
+
+		expect(result.items[0]).toMatchObject({
+			arrivedCount: 0,
+			missingCount: 1,
+			isComplete: false,
+		});
+		expect(result.items[0]?.employees[0]).toMatchObject({
+			status: 'MISSING',
+			checkedInAt: null,
+			attendanceType: null,
+		});
 	});
 
 	it('aggregates stats with current incomplete streak and scoped requirements', () => {

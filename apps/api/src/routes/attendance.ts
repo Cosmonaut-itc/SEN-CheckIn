@@ -212,9 +212,6 @@ async function loadStaffingCoverageSourceRows(args: {
 		eq(employee.organizationId, args.organizationId),
 		eq(employee.status, 'ACTIVE'),
 	];
-	if (args.locationId) {
-		employeeConditions.push(eq(employee.locationId, args.locationId));
-	}
 
 	const employees = await db
 		.select({
@@ -303,7 +300,18 @@ async function loadStaffingCoverageSourceRows(args: {
 		) as SQL<unknown>,
 	];
 	if (args.locationId) {
-		attendanceConditions.push(eq(employee.locationId, args.locationId));
+		attendanceConditions.push(
+			or(
+				and(
+					eq(attendanceRecord.type, 'CHECK_IN'),
+					eq(device.locationId, args.locationId),
+				),
+				and(
+					eq(attendanceRecord.type, 'WORK_OFFSITE'),
+					eq(employee.locationId, args.locationId),
+				),
+			) as SQL<unknown>,
+		);
 	}
 
 	const attendanceRows = await db
@@ -313,9 +321,11 @@ async function loadStaffingCoverageSourceRows(args: {
 			type: attendanceRecord.type,
 			timestamp: attendanceRecord.timestamp,
 			offsiteDateKey: attendanceRecord.offsiteDateKey,
+			locationId: device.locationId,
 		})
 		.from(attendanceRecord)
 		.innerJoin(employee, eq(attendanceRecord.employeeId, employee.id))
+		.innerJoin(device, eq(attendanceRecord.deviceId, device.id))
 		.where(and(...attendanceConditions));
 	const attendanceRecords = attendanceRows.map((row) => ({
 		id: row.id,
@@ -325,6 +335,7 @@ async function loadStaffingCoverageSourceRows(args: {
 		offsiteDateKey: row.offsiteDateKey,
 		localDateKey:
 			row.type === 'CHECK_IN' ? toDateKeyInTimeZone(row.timestamp, args.timeZone) : null,
+		locationId: row.type === 'CHECK_IN' ? row.locationId : null,
 	}));
 
 	return {

@@ -97,6 +97,7 @@ const initialFormValues: JobPositionFormValues = {
 const EMPTY_LOCATIONS: Location[] = [];
 const EMPTY_STAFFING_REQUIREMENTS: StaffingRequirement[] = [];
 const STAFFING_REQUIREMENTS_PAGE_SIZE = 100;
+const STAFFING_MINIMUM_REQUIRED_MAX = 2_147_483_647;
 
 /**
  * Builds a map of staffing requirements keyed by location identifier.
@@ -484,11 +485,21 @@ export function JobPositionsPageClient(): React.ReactElement {
 			}
 
 			const existingRequirement = staffingRequirementByLocationId.get(location.id);
-			const minimumRequired = Number(
+			const minimumRequiredValue =
 				staffingMinimumDrafts[location.id] ??
-					(existingRequirement ? String(existingRequirement.minimumRequired) : ''),
-			);
-			if (!Number.isInteger(minimumRequired) || minimumRequired < 1) {
+				(existingRequirement ? String(existingRequirement.minimumRequired) : '');
+			const normalizedMinimumRequired = minimumRequiredValue.trim();
+			if (normalizedMinimumRequired.length === 0) {
+				toast.error(t('staffing.validation.minimumRequired'));
+				return;
+			}
+
+			const minimumRequired = Number(normalizedMinimumRequired);
+			if (
+				!Number.isInteger(minimumRequired) ||
+				minimumRequired < 0 ||
+				minimumRequired > STAFFING_MINIMUM_REQUIRED_MAX
+			) {
 				toast.error(t('staffing.validation.minimumRequired'));
 				return;
 			}
@@ -990,7 +1001,7 @@ export function JobPositionsPageClient(): React.ReactElement {
 													id={`staffing-minimum-${location.id}`}
 													type="number"
 													inputMode="numeric"
-													min={1}
+													min={0}
 													step={1}
 													value={draftValue}
 													aria-label={t(

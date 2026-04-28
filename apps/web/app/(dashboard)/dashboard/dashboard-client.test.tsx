@@ -99,6 +99,22 @@ vi.mock('next-intl', () => ({
 				return `Último ${values?.date ?? ''}`;
 			}
 
+			if (key === 'staffingCoverage.values.employeesMore') {
+				return `+${values?.count ?? 0} más`;
+			}
+
+			if (key === 'staffingCoverage.values.noEmployees') {
+				return 'Sin empleados programados';
+			}
+
+			if (key === 'staffingCoverage.employeeStatus.arrived') {
+				return 'Llegó';
+			}
+
+			if (key === 'staffingCoverage.employeeStatus.missing') {
+				return 'Falta';
+			}
+
 			return key;
 		}) as ((key: string, values?: Record<string, unknown>) => string) & {
 			rich: (
@@ -271,7 +287,24 @@ function createQueryResults(): Array<Record<string, unknown>> {
 						missingCount: 1,
 						coveragePercent: 67,
 						isComplete: false,
-						employees: [],
+						employees: [
+							{
+								employeeId: 'employee-missing',
+								employeeName: 'Luis Mora',
+								employeeCode: 'A002',
+								status: 'MISSING',
+								checkedInAt: null,
+								attendanceType: null,
+							},
+							{
+								employeeId: 'employee-arrived',
+								employeeName: 'Ana Lara',
+								employeeCode: 'A001',
+								status: 'ARRIVED',
+								checkedInAt: new Date('2026-04-21T14:00:00.000Z'),
+								attendanceType: 'CHECK_IN',
+							},
+						],
 					},
 					{
 						requirementId: 'requirement-2',
@@ -621,11 +654,100 @@ describe('DashboardPageClient', () => {
 		expect(panel).toHaveTextContent('Cajero');
 		expect(panel).toHaveTextContent('2/3');
 		expect(panel).toHaveTextContent('Faltan 1');
+		expect(panel).toHaveTextContent('Luis Mora');
+		expect(panel).toHaveTextContent('Falta');
+		expect(panel).toHaveTextContent('Ana Lara');
+		expect(panel).toHaveTextContent('Llegó');
 		expect(panel).toHaveTextContent('67%');
 		expect(panel).toHaveTextContent('Racha 2d');
 		expect(panel).toHaveTextContent('Último 21 abr 2026');
 		expect(panel).toHaveTextContent('Gerente');
 		expect(panel).toHaveTextContent('1/1');
+	});
+
+	it('renders every employee status when a coverage row has more than four employees', () => {
+		const queryResults = createQueryResults();
+		queryResults[8] = {
+			data: {
+				dateKey: '2026-04-21',
+				data: [
+					{
+						requirementId: 'requirement-1',
+						locationId: 'location-1',
+						locationName: 'Matriz',
+						jobPositionId: 'position-1',
+						jobPositionName: 'Cajero',
+						minimumRequired: 6,
+						scheduledCount: 6,
+						arrivedCount: 1,
+						missingCount: 5,
+						coveragePercent: 17,
+						isComplete: false,
+						employees: [
+							{
+								employeeId: 'employee-missing-1',
+								employeeName: 'Bruno Vega',
+								employeeCode: 'A002',
+								status: 'MISSING',
+								checkedInAt: null,
+								attendanceType: null,
+							},
+							{
+								employeeId: 'employee-missing-2',
+								employeeName: 'Carlos Ruiz',
+								employeeCode: 'A003',
+								status: 'MISSING',
+								checkedInAt: null,
+								attendanceType: null,
+							},
+							{
+								employeeId: 'employee-missing-3',
+								employeeName: 'Diana Soto',
+								employeeCode: 'A004',
+								status: 'MISSING',
+								checkedInAt: null,
+								attendanceType: null,
+							},
+							{
+								employeeId: 'employee-missing-4',
+								employeeName: 'Elena Ponce',
+								employeeCode: 'A005',
+								status: 'MISSING',
+								checkedInAt: null,
+								attendanceType: null,
+							},
+							{
+								employeeId: 'employee-arrived',
+								employeeName: 'Ana Lara',
+								employeeCode: 'A001',
+								status: 'ARRIVED',
+								checkedInAt: new Date('2026-04-21T14:00:00.000Z'),
+								attendanceType: 'CHECK_IN',
+							},
+							{
+								employeeId: 'employee-missing-5',
+								employeeName: 'Fernanda Neri',
+								employeeCode: 'A006',
+								status: 'MISSING',
+								checkedInAt: null,
+								attendanceType: null,
+							},
+						],
+					},
+				],
+			},
+			isFetching: false,
+		};
+		mockQueryResults(queryResults);
+
+		render(<DashboardPageClient />);
+
+		const panel = screen.getByTestId('dashboard-staffing-coverage');
+
+		expect(panel).toHaveTextContent('Ana Lara');
+		expect(panel).toHaveTextContent('Llegó');
+		expect(panel).toHaveTextContent('Fernanda Neri');
+		expect(panel).not.toHaveTextContent('+');
 	});
 
 	it('collapses the location rail on mobile and expands it on demand', () => {

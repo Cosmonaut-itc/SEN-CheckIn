@@ -236,6 +236,65 @@ describe('JobPositionsPageClient staffing requirements', () => {
 		});
 	});
 
+	it('allows saving zero as an explicit staffing minimum', async () => {
+		renderJobPositionsPage();
+
+		await waitFor(() => {
+			expect(screen.getByText('Cajero')).toBeInTheDocument();
+		});
+
+		fireEvent.click(screen.getByRole('button', { name: 'Configurar mínimos de Cajero' }));
+
+		const matrizInput = await screen.findByLabelText('Mínimo requerido para Matriz');
+
+		fireEvent.change(matrizInput, { target: { value: '0' } });
+		fireEvent.click(screen.getByRole('button', { name: 'Guardar mínimo para Matriz' }));
+
+		await waitFor(() => {
+			expect(mockUpdateStaffingRequirement).toHaveBeenCalledWith({
+				id: 'requirement-1',
+				minimumRequired: 0,
+			});
+		});
+		expect(mockToastError).not.toHaveBeenCalledWith('Ingresa un mínimo mayor a cero.');
+	});
+
+	it('rejects blank staffing minimums instead of saving them as zero', async () => {
+		renderJobPositionsPage();
+
+		await waitFor(() => {
+			expect(screen.getByText('Cajero')).toBeInTheDocument();
+		});
+
+		fireEvent.click(screen.getByRole('button', { name: 'Configurar mínimos de Cajero' }));
+
+		const matrizInput = await screen.findByLabelText('Mínimo requerido para Matriz');
+
+		fireEvent.change(matrizInput, { target: { value: '' } });
+		fireEvent.click(screen.getByRole('button', { name: 'Guardar mínimo para Matriz' }));
+
+		expect(mockUpdateStaffingRequirement).not.toHaveBeenCalled();
+		expect(mockToastError).toHaveBeenCalledWith('Ingresa un mínimo de cero o mayor.');
+	});
+
+	it('rejects staffing minimums above the database integer range', async () => {
+		renderJobPositionsPage();
+
+		await waitFor(() => {
+			expect(screen.getByText('Cajero')).toBeInTheDocument();
+		});
+
+		fireEvent.click(screen.getByRole('button', { name: 'Configurar mínimos de Cajero' }));
+
+		const matrizInput = await screen.findByLabelText('Mínimo requerido para Matriz');
+
+		fireEvent.change(matrizInput, { target: { value: '2147483648' } });
+		fireEvent.click(screen.getByRole('button', { name: 'Guardar mínimo para Matriz' }));
+
+		expect(mockUpdateStaffingRequirement).not.toHaveBeenCalled();
+		expect(mockToastError).toHaveBeenCalledWith('Ingresa un mínimo de cero o mayor.');
+	});
+
 	it('loads staffing requirements across all pages for the selected position', async () => {
 		mockFetchLocationsAll.mockResolvedValue([
 			{

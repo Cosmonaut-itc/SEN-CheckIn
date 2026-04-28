@@ -190,6 +190,7 @@
 				"jobPosition": "Puesto",
 				"arrivedMinimum": "Llegaron/Mínimo",
 				"missing": "Faltantes",
+				"employees": "Empleados",
 				"coverage": "Cobertura",
 				"trend": "Seguimiento",
 				"status": "Estatus"
@@ -200,7 +201,13 @@
 				"noMissing": "Sin faltantes",
 				"streak": "Racha {days}d",
 				"lastIncomplete": "Último {date}",
-				"noRecentIncomplete": "Sin incompletos"
+				"noRecentIncomplete": "Sin incompletos",
+				"employeesMore": "+{count} más",
+				"noEmployees": "Sin empleados programados"
+			},
+			"employeeStatus": {
+				"arrived": "Llegó",
+				"missing": "Falta"
 			},
 			"status": {
 				"complete": "Completo",
@@ -1710,7 +1717,7 @@
 				"notConfigured": "Sin mínimo"
 			},
 			"validation": {
-				"minimumRequired": "Ingresa un mínimo mayor a cero."
+				"minimumRequired": "Ingresa un mínimo de cero o mayor."
 			},
 			"empty": "No hay ubicaciones disponibles para configurar mínimos.",
 			"error": {

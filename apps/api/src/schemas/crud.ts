@@ -203,6 +203,20 @@ export const jobPositionQuerySchema = paginationSchema.extend({
 // Staffing Requirement Schemas
 // ============================================================================
 
+const STAFFING_MINIMUM_REQUIRED_MAX = 2_147_483_647;
+
+/**
+ * Numeric schema for staffing minimums that rejects blank strings.
+ */
+const staffingMinimumRequiredSchema = z.preprocess((value) => {
+	if (typeof value === 'string') {
+		const trimmedValue = value.trim();
+		return trimmedValue.length > 0 ? Number(trimmedValue) : value;
+	}
+
+	return value;
+}, z.number().int().min(0).max(STAFFING_MINIMUM_REQUIRED_MAX));
+
 /**
  * Schema for creating a new staffing requirement.
  */
@@ -210,7 +224,7 @@ export const createStaffingRequirementSchema = z.object({
 	organizationId: z.string().optional(),
 	locationId: z.string().uuid('Invalid location ID'),
 	jobPositionId: z.string().uuid('Invalid job position ID'),
-	minimumRequired: z.coerce.number().int().min(0),
+	minimumRequired: staffingMinimumRequiredSchema,
 });
 
 /**
@@ -219,7 +233,7 @@ export const createStaffingRequirementSchema = z.object({
 export const updateStaffingRequirementSchema = z.object({
 	locationId: z.string().uuid().optional(),
 	jobPositionId: z.string().uuid().optional(),
-	minimumRequired: z.coerce.number().int().min(0).optional(),
+	minimumRequired: staffingMinimumRequiredSchema.optional(),
 });
 
 /**

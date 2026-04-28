@@ -8,6 +8,7 @@ const {
 	mockAttendanceTimelineGet,
 	mockAttendanceHourlyGet,
 	mockDevicesStatusSummaryGet,
+	mockDeviceSettingsPinConfigGet,
 	mockWeatherGet,
 } = vi.hoisted(() => ({
 	mockEmployeesListGet: vi.fn(),
@@ -17,6 +18,7 @@ const {
 	mockAttendanceTimelineGet: vi.fn(),
 	mockAttendanceHourlyGet: vi.fn(),
 	mockDevicesStatusSummaryGet: vi.fn(),
+	mockDeviceSettingsPinConfigGet: vi.fn(),
 	mockWeatherGet: vi.fn(),
 }));
 
@@ -45,6 +47,9 @@ vi.mock('@/lib/api', () => {
 			get: (_target, property: string | symbol): unknown => {
 				if (property === 'status-summary') {
 					return { get: mockDevicesStatusSummaryGet };
+				}
+				if (property === 'settings-pin-config') {
+					return { get: mockDeviceSettingsPinConfigGet };
 				}
 				return undefined;
 			},
@@ -82,6 +87,7 @@ import {
 	fetchAttendanceHourly,
 	fetchAttendanceTimeline,
 	fetchDashboardLocationCapacity,
+	fetchDeviceSettingsPinConfig,
 	fetchDeviceStatusSummary,
 	fetchEmployeeById,
 	fetchEmployeesList,
@@ -642,6 +648,44 @@ describe('dashboard v2 client functions', () => {
 			}),
 		]);
 		expect(mockDevicesStatusSummaryGet).toHaveBeenCalledWith({
+			$query: {
+				organizationId: 'org-1',
+			},
+		});
+	});
+
+	it('fetches device settings PIN config from the API', async () => {
+		mockDeviceSettingsPinConfigGet.mockResolvedValue({
+			data: {
+				data: {
+					mode: 'PER_DEVICE',
+					globalPinConfigured: true,
+					devices: [
+						{
+							id: 'device-1',
+							code: 'CHK-001',
+							name: 'Kiosco Norte',
+							deviceStatus: 'ONLINE',
+							overrideConfigured: true,
+							pinRequired: true,
+							pinSource: 'DEVICE',
+							status: 'OWN_PIN',
+						},
+					],
+				},
+			},
+			error: null,
+			status: 200,
+		});
+
+		const response = await fetchDeviceSettingsPinConfig({
+			organizationId: 'org-1',
+		});
+
+		expect(response.mode).toBe('PER_DEVICE');
+		expect(response.globalPinConfigured).toBe(true);
+		expect(response.devices[0]?.status).toBe('OWN_PIN');
+		expect(mockDeviceSettingsPinConfigGet).toHaveBeenCalledWith({
 			$query: {
 				organizationId: 'org-1',
 			},

@@ -1730,6 +1730,53 @@
 		"actions": {
 			"saveChanges": "Guardar cambios"
 		},
+		"settingsPin": {
+			"title": "PIN de configuración",
+			"description": "Controla el PIN requerido para abrir la configuración protegida en checadores y kioscos.",
+			"loading": "Cargando configuración de PIN...",
+			"mode": {
+				"label": "Modo de PIN de configuración",
+				"global": "Mismo PIN para todos",
+				"perDevice": "PIN por dispositivo"
+			},
+			"global": {
+				"configured": "PIN global configurado",
+				"notConfigured": "PIN global no configurado",
+				"pinLabel": "Nuevo PIN global",
+				"confirmLabel": "Confirmar PIN global",
+				"save": "Guardar configuración de PIN"
+			},
+			"devices": {
+				"title": "Estatus por dispositivo",
+				"count": "{count, plural, one {# dispositivo} other {# dispositivos}}",
+				"empty": "No hay dispositivos para mostrar.",
+				"change": "Cambiar PIN",
+				"changeAria": "Cambiar PIN de {name}"
+			},
+			"status": {
+				"OWN_PIN": "PIN propio",
+				"USES_GLOBAL": "Usa PIN global",
+				"NOT_CONFIGURED": "Sin PIN configurado"
+			},
+			"deviceDialog": {
+				"title": "PIN del dispositivo",
+				"description": "Actualiza el PIN de configuración para {name}.",
+				"descriptionFallback": "Actualiza el PIN de configuración del dispositivo seleccionado.",
+				"pinLabel": "Nuevo PIN del dispositivo",
+				"confirmLabel": "Confirmar PIN del dispositivo",
+				"save": "Guardar PIN del dispositivo"
+			},
+			"validation": {
+				"format": "El PIN debe tener 4 dígitos numéricos.",
+				"mismatch": "La confirmación del PIN no coincide."
+			},
+			"toast": {
+				"configSuccess": "Configuración de PIN actualizada correctamente",
+				"configError": "No se pudo actualizar la configuración de PIN",
+				"deviceSuccess": "PIN del dispositivo actualizado correctamente",
+				"deviceError": "No se pudo actualizar el PIN del dispositivo"
+			}
+		},
 		"mobileSetup": {
 			"ariaLabel": "Abrir configuración de dispositivo en la app móvil",
 			"label": "Configurar dispositivo móvil"

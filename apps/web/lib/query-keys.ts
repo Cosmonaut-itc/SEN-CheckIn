@@ -499,6 +499,12 @@ export const queryKeys = {
 		list: (params?: ListQueryParams) =>
 			queryKeyConstructor(['devices', 'list'] as const, params),
 		/**
+		 * Generates a query key for device settings PIN configuration.
+		 * @param params - Optional organization scope
+		 */
+		settingsPinConfig: (params?: { organizationId?: string | null }) =>
+			queryKeyConstructor(['devices', 'settings-pin-config'] as const, params),
+		/**
 		 * Generates a query key for a specific device.
 		 * @param id - The device ID
 		 */
@@ -906,6 +912,8 @@ export const mutationKeys = {
 		create: ['devices', 'create'] as const,
 		update: ['devices', 'update'] as const,
 		delete: ['devices', 'delete'] as const,
+		settingsPinConfig: ['devices', 'settings-pin-config'] as const,
+		settingsPin: ['devices', 'settings-pin'] as const,
 	},
 
 	/**

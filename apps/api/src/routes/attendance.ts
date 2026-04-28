@@ -40,7 +40,7 @@ import { combinedAuthPlugin } from '../plugins/auth.js';
 import type { AuthSession } from '../plugins/auth.js';
 import { buildErrorResponse } from '../utils/error-response.js';
 import { hasOrganizationAccess, resolveOrganizationId } from '../utils/organization.js';
-import { addDaysToDateKey, parseDateKey, toDateKeyUtc } from '../utils/date-key.js';
+import { addDaysToDateKey, parseDateKey } from '../utils/date-key.js';
 import {
 	calculateStaffingCoverageForDate,
 	calculateStaffingCoverageStats,
@@ -81,6 +81,7 @@ import {
 const OFFSITE_MAX_RETRO_DAYS = 7;
 const OFFSITE_VIRTUAL_DEVICE_PREFIX = 'VIRTUAL-RH-OFFSITE';
 const OFFSITE_EMPLOYEE_DATE_UNIQUE_INDEX = 'attendance_record_offsite_employee_date_uniq';
+const LEGACY_SCHEDULE_EXCEPTION_SERVER_TIME_ZONES = ['America/Mexico_City'] as const;
 
 /**
  * Builds a deterministic virtual device code used for RH offsite records.
@@ -161,6 +162,169 @@ function buildUtcBoundsForDateKey(
 	const startUtc = getUtcDateForZonedMidnight(dateKey, timeZone);
 	const endExclusiveUtc = getUtcDateForZonedMidnight(addDaysToDateKey(dateKey, 1), timeZone);
 	return { startUtc, endExclusiveUtc };
+}
+
+/**
+ * Builds the inclusive date-key window used by staffing coverage stats.
+ *
+ * @param startDateKey - First date key in the window
+ * @param endDateKey - Last date key in the window
+ * @returns Date keys from start to end
+ * @throws When either date key is invalid
+ */
+function buildInclusiveDateKeyWindow(startDateKey: string, endDateKey: string): string[] {
+	parseDateKey(startDateKey);
+	parseDateKey(endDateKey);
+
+	const dateKeys: string[] = [];
+	let currentDateKey = startDateKey;
+	while (currentDateKey <= endDateKey) {
+		dateKeys.push(currentDateKey);
+		currentDateKey = addDaysToDateKey(currentDateKey, 1);
+	}
+	return dateKeys;
+}
+
+/**
+ * Removes duplicate dates by timestamp while preserving candidate priority.
+ *
+ * @param candidates - Candidate date instances
+ * @returns Deduplicated date list
+ */
+function dedupeDatesByTime(candidates: Date[]): Date[] {
+	const seenTimes = new Set<number>();
+	return candidates.filter((candidate) => {
+		const time = candidate.getTime();
+		if (seenTimes.has(time)) {
+			return false;
+		}
+		seenTimes.add(time);
+		return true;
+	});
+}
+
+/**
+ * Builds a date for runtime-server-local midnight for a date key.
+ *
+ * @param dateKey - Business date key
+ * @returns Date at local midnight in the current runtime timezone
+ * @throws When the date key is invalid
+ */
+function buildRuntimeServerLocalMidnightDate(dateKey: string): Date {
+	const { year, month, day } = parseDateKey(dateKey);
+	return new Date(year, month - 1, day, 0, 0, 0, 0);
+}
+
+/**
+ * Builds a date for the legacy startOfDay(Date.UTC-date) storage pattern.
+ *
+ * @param dateKey - Business date key
+ * @param timeZone - Timezone used by the legacy server runtime
+ * @returns Date matching `startOfDay(new Date(dateKey UTC))` in the timezone
+ * @throws When the date key is invalid
+ */
+function buildLegacyServerStartOfUtcDate(dateKey: string, timeZone: string): Date {
+	const utcMidnight = new Date(`${dateKey}T00:00:00.000Z`);
+	const serverLocalDateKey = toDateKeyInTimeZone(utcMidnight, timeZone);
+	return getUtcDateForZonedMidnight(serverLocalDateKey, timeZone);
+}
+
+/**
+ * Builds the schedule-exception storage candidates for a business date key.
+ *
+ * @param dateKey - Business date key
+ * @param timeZone - Organization timezone
+ * @returns Candidate persisted dates for the same business day
+ * @throws When the date key is invalid
+ */
+function buildPrimaryScheduleExceptionStorageDateCandidates(
+	dateKey: string,
+	timeZone: string,
+): Date[] {
+	parseDateKey(dateKey);
+	const utcMidnight = new Date(`${dateKey}T00:00:00.000Z`);
+	const zonedMidnight = getUtcDateForZonedMidnight(dateKey, timeZone);
+	const serverLocalMidnight = buildRuntimeServerLocalMidnightDate(dateKey);
+	const legacyServerMidnights = LEGACY_SCHEDULE_EXCEPTION_SERVER_TIME_ZONES.map(
+		(legacyTimeZone) => getUtcDateForZonedMidnight(dateKey, legacyTimeZone),
+	);
+	return dedupeDatesByTime([
+		utcMidnight,
+		zonedMidnight,
+		serverLocalMidnight,
+		...legacyServerMidnights,
+	]);
+}
+
+/**
+ * Builds the legacy manual schedule-exception storage candidates for a business date key.
+ *
+ * @param dateKey - Business date key
+ * @param timeZone - Organization timezone
+ * @returns Candidate persisted dates for date-only values normalized with server-local startOfDay
+ * @throws When the date key is invalid
+ */
+function buildLegacyManualScheduleExceptionStorageDateCandidates(
+	dateKey: string,
+	timeZone: string,
+): Date[] {
+	parseDateKey(dateKey);
+	const utcMidnight = new Date(`${dateKey}T00:00:00.000Z`);
+	const zonedMidnight = getUtcDateForZonedMidnight(dateKey, timeZone);
+	const runtimeServerStartOfUtcDate = startOfDay(utcMidnight);
+	const legacyServerStartOfUtcDates = LEGACY_SCHEDULE_EXCEPTION_SERVER_TIME_ZONES.map(
+		(legacyTimeZone) => buildLegacyServerStartOfUtcDate(dateKey, legacyTimeZone),
+	);
+	const previousOrgLocalMidnight =
+		zonedMidnight.getTime() > utcMidnight.getTime()
+			? [getUtcDateForZonedMidnight(addDaysToDateKey(dateKey, -1), timeZone)]
+			: [];
+
+	return dedupeDatesByTime([
+		runtimeServerStartOfUtcDate,
+		...legacyServerStartOfUtcDates,
+		...previousOrgLocalMidnight,
+	]);
+}
+
+type ScheduleExceptionDateKeyMaps = {
+	primaryDateKeyByStoredTime: Map<number, string>;
+	legacyManualDateKeyByStoredTime: Map<number, string>;
+};
+
+/**
+ * Builds reverse lookups from persisted exception timestamps to staffing date keys.
+ *
+ * @param startDateKey - First business date key
+ * @param endDateKey - Last business date key
+ * @param timeZone - Organization timezone
+ * @returns Primary and legacy manual mappings keyed by persisted timestamp milliseconds
+ */
+function buildScheduleExceptionDateKeyMaps(
+	startDateKey: string,
+	endDateKey: string,
+	timeZone: string,
+): ScheduleExceptionDateKeyMaps {
+	const primaryDateKeyByStoredTime = new Map<number, string>();
+	const legacyManualDateKeyByStoredTime = new Map<number, string>();
+	for (const dateKey of buildInclusiveDateKeyWindow(startDateKey, endDateKey)) {
+		for (const candidate of buildPrimaryScheduleExceptionStorageDateCandidates(dateKey, timeZone)) {
+			const time = candidate.getTime();
+			if (!primaryDateKeyByStoredTime.has(time)) {
+				primaryDateKeyByStoredTime.set(time, dateKey);
+			}
+		}
+		for (const candidate of buildLegacyManualScheduleExceptionStorageDateCandidates(
+			dateKey,
+			timeZone,
+		)) {
+			const time = candidate.getTime();
+			if (!legacyManualDateKeyByStoredTime.has(time)) {
+				legacyManualDateKeyByStoredTime.set(time, dateKey);
+			}
+		}
+	}
+	return { primaryDateKeyByStoredTime, legacyManualDateKeyByStoredTime };
 }
 
 type StaffingCoverageSourceRows = {
@@ -257,18 +421,28 @@ async function loadStaffingCoverageSourceRows(args: {
 
 	const { startUtc } = buildUtcBoundsForDateKey(args.startDateKey, args.timeZone);
 	const { endExclusiveUtc } = buildUtcBoundsForDateKey(args.endDateKey, args.timeZone);
-	const exceptionStartUtc = new Date(`${args.startDateKey}T00:00:00.000Z`);
-	const exceptionEndExclusiveUtc = new Date(
-		`${addDaysToDateKey(args.endDateKey, 1)}T00:00:00.000Z`,
-	);
+	const { primaryDateKeyByStoredTime, legacyManualDateKeyByStoredTime } =
+		buildScheduleExceptionDateKeyMaps(
+			args.startDateKey,
+			args.endDateKey,
+			args.timeZone,
+		);
+	const exceptionStoredTimes = [
+		...primaryDateKeyByStoredTime.keys(),
+		...legacyManualDateKeyByStoredTime.keys(),
+	];
+	const exceptionStartUtc = new Date(Math.min(...exceptionStoredTimes));
+	const exceptionEndExclusiveUtc = new Date(Math.max(...exceptionStoredTimes) + 1);
 	const exceptionRows =
 		employeeIds.length > 0
 			? await db
-					.select({
-						employeeId: scheduleException.employeeId,
-						exceptionDate: scheduleException.exceptionDate,
-						exceptionType: scheduleException.exceptionType,
-					})
+						.select({
+							employeeId: scheduleException.employeeId,
+							exceptionDate: scheduleException.exceptionDate,
+							exceptionType: scheduleException.exceptionType,
+							vacationRequestId: scheduleException.vacationRequestId,
+							incapacityId: scheduleException.incapacityId,
+						})
 					.from(scheduleException)
 					.where(
 						and(
@@ -278,11 +452,19 @@ async function loadStaffingCoverageSourceRows(args: {
 						),
 					)
 			: [];
-	const exceptions = exceptionRows.map((row) => ({
-		employeeId: row.employeeId,
-		exceptionDateKey: toDateKeyUtc(row.exceptionDate),
-		exceptionType: row.exceptionType,
-	}));
+	const exceptions = exceptionRows.map((row) => {
+		const isGeneratedException = Boolean(row.vacationRequestId || row.incapacityId);
+		return {
+			employeeId: row.employeeId,
+			exceptionDateKey: isGeneratedException
+				? (primaryDateKeyByStoredTime.get(row.exceptionDate.getTime()) ??
+					toDateKeyInTimeZone(row.exceptionDate, args.timeZone))
+				: (primaryDateKeyByStoredTime.get(row.exceptionDate.getTime()) ??
+					legacyManualDateKeyByStoredTime.get(row.exceptionDate.getTime()) ??
+					toDateKeyInTimeZone(row.exceptionDate, args.timeZone)),
+			exceptionType: row.exceptionType,
+		};
+	});
 
 	const attendanceConditions: SQL<unknown>[] = [
 		eq(employee.organizationId, args.organizationId),

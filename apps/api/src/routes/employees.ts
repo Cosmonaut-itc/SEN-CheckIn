@@ -10,6 +10,7 @@ import {
 	employee,
 	employeeAuditEvent,
 	employeeDisciplinaryMeasure,
+	employeeFiscalProfile,
 	employeeSchedule,
 	employeeTerminationDraft,
 	employeeTerminationSettlement,
@@ -69,6 +70,12 @@ import {
 } from '../services/rekognition.js';
 import { buildEmployeeVacationBalance } from '../services/vacation-balance.js';
 import { buildEmployeeDocumentProgressMap } from '../services/employee-documents.js';
+import {
+	canAccessPayrollFiscalProfiles,
+	canRevealPayrollFiscalSensitiveData,
+	employeeFiscalProfileBodySchema,
+	maskBankAccount,
+} from './payroll-fiscal.js';
 import { addDaysToDateKey, toDateKeyUtc } from '../utils/date-key.js';
 import { resolveMinimumWageRequirement, type MinimumWageZone } from '../utils/minimum-wage.js';
 import {
@@ -261,6 +268,53 @@ async function hasOrganizationAdminRole(args: {
 
 	const role = membership[0]?.role ?? null;
 	return role === 'admin' || role === 'owner';
+}
+
+/**
+ * Resolves the caller's organization membership role.
+ *
+ * @param args - Authorization context and organization
+ * @returns Membership role, or null for API keys/non-members
+ */
+async function resolveOrganizationRole(args: {
+	authType: 'session' | 'apiKey';
+	session: AuthSession | null;
+	organizationId: string;
+}): Promise<string | null> {
+	if (args.authType !== 'session' || !args.session) {
+		return null;
+	}
+
+	const membership = await db
+		.select({ role: member.role })
+		.from(member)
+		.where(
+			and(
+				eq(member.userId, args.session.userId),
+				eq(member.organizationId, args.organizationId),
+			),
+		)
+		.limit(1);
+
+	return membership[0]?.role ?? null;
+}
+
+/**
+ * Builds an API-safe employee fiscal profile payload.
+ *
+ * @param row - Fiscal profile row
+ * @param revealSensitive - Whether full sensitive fields may be returned
+ * @returns Fiscal profile response payload
+ */
+function buildEmployeeFiscalProfileResponse(
+	row: typeof employeeFiscalProfile.$inferSelect,
+	revealSensitive: boolean,
+): Record<string, unknown> {
+	return {
+		...row,
+		bankAccount: revealSensitive ? row.bankAccount : maskBankAccount(row.bankAccount),
+		bankAccountMasked: maskBankAccount(row.bankAccount),
+	};
 }
 
 /**
@@ -1293,6 +1347,146 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 		},
 		{
 			query: employeeQuerySchema,
+		},
+	)
+	.get(
+		'/:id/fiscal-profile',
+		async ({
+			params,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationIds,
+		}) => {
+			const employeeRows = await db
+				.select({ organizationId: employee.organizationId })
+				.from(employee)
+				.where(eq(employee.id, params.id))
+				.limit(1);
+			const organizationId = employeeRows[0]?.organizationId ?? null;
+
+			if (
+				!hasOrganizationAccess(
+					authType,
+					session ?? null,
+					sessionOrganizationIds,
+					apiKeyOrganizationIds,
+					organizationId,
+				) ||
+				!organizationId
+			) {
+				set.status = 404;
+				return buildErrorResponse('Employee not found', 404);
+			}
+
+			const role = await resolveOrganizationRole({
+				authType,
+				session: session ?? null,
+				organizationId,
+			});
+			if (!canAccessPayrollFiscalProfiles({ authType, role })) {
+				set.status = 403;
+				return buildErrorResponse('Payroll fiscal access required', 403);
+			}
+
+			const rows = await db
+				.select()
+				.from(employeeFiscalProfile)
+				.where(eq(employeeFiscalProfile.employeeId, params.id))
+				.limit(1);
+			const profile = rows[0] ?? null;
+			const revealSensitive = canRevealPayrollFiscalSensitiveData({ authType, role });
+
+			return {
+				data: profile ? buildEmployeeFiscalProfileResponse(profile, revealSensitive) : null,
+			};
+		},
+	)
+	.put(
+		'/:id/fiscal-profile',
+		async ({
+			params,
+			body,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationIds,
+		}) => {
+			const employeeRows = await db
+				.select({ organizationId: employee.organizationId })
+				.from(employee)
+				.where(eq(employee.id, params.id))
+				.limit(1);
+			const organizationId = employeeRows[0]?.organizationId ?? null;
+
+			if (
+				!hasOrganizationAccess(
+					authType,
+					session ?? null,
+					sessionOrganizationIds,
+					apiKeyOrganizationIds,
+					organizationId,
+				) ||
+				!organizationId
+			) {
+				set.status = 404;
+				return buildErrorResponse('Employee not found', 404);
+			}
+
+			const role = await resolveOrganizationRole({
+				authType,
+				session: session ?? null,
+				organizationId,
+			});
+			if (!canAccessPayrollFiscalProfiles({ authType, role })) {
+				set.status = 403;
+				return buildErrorResponse('Payroll fiscal access required', 403);
+			}
+
+			const payload: typeof employeeFiscalProfile.$inferInsert = {
+				employeeId: params.id,
+				organizationId,
+				satName: body.satName ?? '',
+				rfc: body.rfc ?? '',
+				curp: body.curp ?? '',
+				fiscalPostalCode: body.fiscalPostalCode ?? '',
+				fiscalRegimeCode: body.fiscalRegimeCode ?? '605',
+				cfdiUseCode: body.cfdiUseCode ?? 'CN01',
+				socialSecurityNumber: body.socialSecurityNumber ?? null,
+				employmentStartDateKey: body.employmentStartDateKey ?? '',
+				contractTypeCode: body.contractTypeCode ?? '',
+				unionized: body.unionized ?? null,
+				workdayTypeCode: body.workdayTypeCode ?? '',
+				payrollRegimeTypeCode: body.payrollRegimeTypeCode ?? '',
+				employeeNumber: body.employeeNumber ?? '',
+				department: body.department ?? null,
+				position: body.position ?? null,
+				riskPositionCode: body.riskPositionCode ?? null,
+				paymentFrequencyCode: body.paymentFrequencyCode ?? '',
+				bankAccount: body.bankAccount ?? null,
+				salaryBaseContribution: body.salaryBaseContribution ?? null,
+				integratedDailySalary: body.integratedDailySalary ?? null,
+				federalEntityCode: body.federalEntityCode ?? null,
+				updatedAt: new Date(),
+			};
+			const [saved] = await db
+				.insert(employeeFiscalProfile)
+				.values(payload)
+				.onConflictDoUpdate({
+					target: employeeFiscalProfile.employeeId,
+					set: payload,
+				})
+				.returning();
+			const revealSensitive = canRevealPayrollFiscalSensitiveData({ authType, role });
+
+			return {
+				data: saved ? buildEmployeeFiscalProfileResponse(saved, revealSensitive) : null,
+			};
+		},
+		{
+			body: employeeFiscalProfileBodySchema,
 		},
 	)
 

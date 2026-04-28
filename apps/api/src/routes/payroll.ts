@@ -57,6 +57,7 @@ import {
 	type PayrollFiscalVoucherValidationIssue,
 	type PayrollFiscalVoucherValidationStatus,
 } from '../services/payroll-fiscal-vouchers.js';
+import { buildPayrollFiscalPreflight } from '../services/payroll-fiscal-validation.js';
 import type {
 	PayrollEmployeeWithholdings,
 	PayrollInformationalLines,
@@ -2116,6 +2117,68 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 		},
 		{
 			query: payrollRunQuerySchema,
+		},
+	)
+	/**
+	 * Prepare fiscal vouchers for a processed payroll run.
+	 */
+	.get(
+		'/runs/:id/fiscal-preflight',
+		async ({
+			params,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+			set,
+		}) => {
+			const { id } = params;
+			const runRows = await db
+				.select()
+				.from(payrollRun)
+				.where(eq(payrollRun.id, id))
+				.limit(1);
+			const run = runRows[0];
+
+			if (!run) {
+				set.status = 404;
+				return buildErrorResponse('Payroll run not found', 404);
+			}
+
+			const organizationId = resolveOrganizationId({
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: run.organizationId,
+			});
+
+			if (!organizationId || organizationId !== run.organizationId) {
+				set.status = 404;
+				return buildErrorResponse('Payroll run not found', 404);
+			}
+
+			const canAccessFiscalPreflight = await canViewDualPayrollCompensation({
+				authType,
+				organizationId: run.organizationId,
+				session: session ?? null,
+			});
+			if (!canAccessFiscalPreflight) {
+				set.status = 403;
+				return buildErrorResponse(
+					'You do not have access to payroll fiscal preflight',
+					403,
+				);
+			}
+
+			return {
+				data: await buildPayrollFiscalPreflight({
+					organizationId: run.organizationId,
+					payrollRunId: id,
+				}),
+			};
 		},
 	)
 	/**
